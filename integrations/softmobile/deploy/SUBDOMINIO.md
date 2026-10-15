@@ -23,6 +23,13 @@ Como todavía no hay cuenta administradora, el sitio HTTPS está protegido por H
 - Dejar `ENABLE_ACCOUNT_SIGNUP=false` para prevenir altas no autorizadas, salvo que un flujo documentado requiera un cambio temporal y controlado.
 - No mostrar credenciales personales ni API tokens en logs, commits o mensajes operativos.
 
+
+### Incidencia Nginx 500 corregida
+
+El archivo `/etc/nginx/.softmobile-onboarding.htpasswd` se creó inicialmente con permisos `0600 root:root`, provocando respuestas HTTP 500 porque los trabajadores Nginx (`www-data`) no podían leerlo (`Permission denied` en `/var/log/nginx/error.log`). Se corrigió a **`0640 root:www-data`** y se verificó lectura con `runuser -u www-data -- test -r ...`. La respuesta esperada sin credenciales ahora es **HTTP 401** (desafío Basic Auth), no 500; el inventario permaneció en HTTP 200.
+
+Para instalaciones posteriores, usar `chown root:www-data /etc/nginx/.softmobile-onboarding.htpasswd` y `chmod 0640 /etc/nginx/.softmobile-onboarding.htpasswd`. Nunca usar `chmod 644` ni almacenar una contraseña sin hash en el repositorio.
+
 ## Próximo paso de ventas
 
 1. Crear primera cuenta de administrador desde el asistente web en HTTPS, bajo la protección temporal.
