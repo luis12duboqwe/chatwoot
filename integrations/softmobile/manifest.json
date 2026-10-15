@@ -1,0 +1,200 @@
+{
+  "project": "SoftMobile Sales MVP",
+  "version": 1,
+  "labels": [
+    {
+      "title": "sm_interesado",
+      "color": "#2563EB",
+      "description": "Cliente interesado en comprar un celular",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_cotizado",
+      "color": "#7C3AED",
+      "description": "Ya recibió una cotización",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_seguimiento",
+      "color": "#F59E0B",
+      "description": "Requiere seguimiento de vendedor",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_visita",
+      "color": "#0D9488",
+      "description": "Cliente listo para visitar punto aliado",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_reserva",
+      "color": "#EA580C",
+      "description": "Reserva pendiente de confirmación",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_vendido",
+      "color": "#16A34A",
+      "description": "Venta verificada y cerrada",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_sin_stock",
+      "color": "#DC2626",
+      "description": "Producto solicitado no disponible",
+      "show_on_sidebar": true
+    },
+    {
+      "title": "sm_descartado",
+      "color": "#64748B",
+      "description": "Oportunidad descartada",
+      "show_on_sidebar": false
+    }
+  ],
+  "canned_responses": [
+    {
+      "short_code": "sm_inicio",
+      "content": "¡Hola! Gracias por escribir a SoftMobile. ¿Qué modelo de celular buscas y en qué ciudad te encuentras? Así puedo ayudarte con las opciones disponibles."
+    },
+    {
+      "short_code": "sm_presupuesto",
+      "content": "¿Qué presupuesto tienes aproximadamente en lempiras y prefieres iPhone o Samsung? Con eso puedo buscarte opciones que se ajusten."
+    },
+    {
+      "short_code": "sm_precio",
+      "content": "Con gusto te cotizo el [MODELO]. Primero confirmaré precio, características y disponibilidad actual para darte información correcta."
+    },
+    {
+      "short_code": "sm_stock",
+      "content": "Voy a verificar si tenemos el [MODELO] disponible en el punto de entrega que te convenga. Te confirmo antes de que te desplaces."
+    },
+    {
+      "short_code": "sm_pagos",
+      "content": "Puedes consultar pago en efectivo, transferencia o tarjeta. Si prefieres extrafinanciamiento, dime con qué banco trabajas para revisar las condiciones aplicables."
+    },
+    {
+      "short_code": "sm_financiamiento",
+      "content": "Manejamos opciones de pago con tarjeta y extrafinanciamiento sujeto a disponibilidad, condiciones del banco y aprobación cuando corresponda. ¿Qué banco y tarjeta utilizarías?"
+    },
+    {
+      "short_code": "sm_ubicaciones",
+      "content": "Tenemos puntos aliados de atención o entrega en San Pedro Sula (Mall Galerías y Plaza Numa), Tegucigalpa (Plaza Criolla) y Choloma, Cortés. Confirmaré cuál tiene el equipo antes de indicarte dónde ir."
+    },
+    {
+      "short_code": "sm_reserva",
+      "content": "Puedo ayudarte a coordinar la compra del [MODELO]. ¿En qué ciudad y punto de entrega lo recibirías? La reserva queda pendiente hasta confirmar disponibilidad y condiciones."
+    },
+    {
+      "short_code": "sm_seguimiento",
+      "content": "¡Hola! Te escribo para dar seguimiento a tu consulta sobre [MODELO]. ¿Quieres que revisemos disponibilidad y precio actualizados?"
+    },
+    {
+      "short_code": "sm_agotado",
+      "content": "Por ahora no puedo confirmar disponibilidad del [MODELO]. Si me dices tu presupuesto, puedo revisar alternativas similares sin comprometer una entrega todavía."
+    },
+    {
+      "short_code": "sm_cierre",
+      "content": "Perfecto. Antes de confirmar, revisaré modelo, estado, precio total, accesorios incluidos, garantía aplicable y punto de entrega. ¿Deseas continuar con la compra?"
+    }
+  ],
+  "custom_attribute_definitions": [
+    {
+      "attribute_key": "sm_modelo",
+      "attribute_display_name": "Modelo solicitado",
+      "attribute_description": "Modelo exacto que quiere comprar",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "text"
+    },
+    {
+      "attribute_key": "sm_presupuesto",
+      "attribute_display_name": "Presupuesto (HNL)",
+      "attribute_description": "Monto aproximado en lempiras",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "number"
+    },
+    {
+      "attribute_key": "sm_ciudad",
+      "attribute_display_name": "Ciudad de compra",
+      "attribute_description": "Ciudad donde necesita el equipo",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "list",
+      "attribute_values": [
+        "San Pedro Sula",
+        "Choloma",
+        "Tegucigalpa",
+        "Otra"
+      ]
+    },
+    {
+      "attribute_key": "sm_pago",
+      "attribute_display_name": "Medio de pago",
+      "attribute_description": "Forma de pago preferida",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "list",
+      "attribute_values": [
+        "Efectivo",
+        "Transferencia",
+        "Tarjeta",
+        "Extrafinanciamiento",
+        "Por definir"
+      ]
+    },
+    {
+      "attribute_key": "sm_etapa",
+      "attribute_display_name": "Etapa comercial",
+      "attribute_description": "Estado de oportunidad",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "list",
+      "attribute_values": [
+        "Nuevo",
+        "Calificado",
+        "Cotizado",
+        "Negociación",
+        "Reserva pendiente",
+        "Vendido",
+        "Descartado"
+      ]
+    },
+    {
+      "attribute_key": "sm_origen",
+      "attribute_display_name": "Origen comercial",
+      "attribute_description": "Campaña, página o anuncio de origen",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "text"
+    },
+    {
+      "attribute_key": "sm_siguiente",
+      "attribute_display_name": "Próxima acción",
+      "attribute_description": "Acción pendiente a realizar por vendedor",
+      "attribute_model": "conversation_attribute",
+      "attribute_display_type": "text"
+    }
+  ],
+  "automation_rules": [
+    {
+      "name": "SM | Clasificar conversación entrante (BORRADOR)",
+      "description": "Inactiva por seguridad. Activar solo después de confirmar bandejas de SoftMobile y evitar otras cuentas de atención.",
+      "event_name": "conversation_created",
+      "active": false,
+      "conditions": [
+        {
+          "attribute_key": "status",
+          "filter_operator": "equal_to",
+          "values": [
+            "open",
+            "pending"
+          ],
+          "query_operator": null
+        }
+      ],
+      "actions": [
+        {
+          "action_name": "add_label",
+          "action_params": [
+            "sm_interesado"
+          ]
+        }
+      ]
+    }
+  ]
+}
