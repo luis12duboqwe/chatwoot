@@ -1,5 +1,5 @@
-# Activate ONLY after Let's Encrypt has created the named certificate.
-# Replaces the temporary HTTP-only ACME site, not the invjear.com website.
+# Enable only AFTER the hostname resolves to the VPS and Let's Encrypt has issued
+# the certificate. Ubuntu Nginx 1.24 expects "listen 443 ssl http2".
 server {
     listen 80;
     listen [::]:80;
@@ -17,9 +17,8 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name chat.invjear.com;
 
     ssl_certificate /etc/letsencrypt/live/chat.invjear.com/fullchain.pem;
