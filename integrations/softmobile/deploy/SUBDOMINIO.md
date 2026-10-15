@@ -40,3 +40,16 @@ Para instalaciones posteriores, usar `chown root:www-data /etc/nginx/.softmobile
 6. Integrar inventario/precios validados antes de automatizar cotizaciones, reservas y promesas de entrega.
 
 No activar automatizaciones de envío sin confirmar primero los canales y las restricciones de mensajería.
+
+
+## Alta inicial completada: 15 de octubre de 2026
+
+- Cuenta real de Chatwoot creada: `SoftMobile` (ID 2), con un usuario administrador confirmado.
+- Se retiró la autenticación HTTP Basic temporal de Nginx y se eliminó su archivo de claves; `https://chat.invjear.com/app/login` respondió HTTP 200.
+- Se creó una copia privada previa a aplicar el embudo, `/opt/chatwoot-softmobile/backups/pre-softmobile-sales-mvp-20261015.dump` (modo 0600, nunca subir a GitHub).
+- Se instalaron en esa cuenta **8 etiquetas, 11 respuestas rápidas, 7 atributos y 1 automatización inactiva** desde el manifiesto. La verificación de lectura encontró cero diferencias.
+- Se configuró el idioma `es`, la zona horaria de informes `America/Tegucigalpa` y el equipo `ventas softmobile` con el administrador asignado.
+- Las automatizaciones permanecen inactivas: todavía no hay bandejas de atención conectadas.
+- Después de aplicar estos recursos, el login y el sistema de inventario existente devolvieron HTTP 200.
+
+**Pendiente:** conectar canales de Meta/WhatsApp con credenciales oficiales y hacer pruebas reales de recepción, respuesta y venta. Ningún token ni contraseña de clientes se almacena en el repositorio.
