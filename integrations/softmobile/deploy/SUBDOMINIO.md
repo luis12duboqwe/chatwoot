@@ -1,45 +1,35 @@
-# Subdominio de Chatwoot: chat.invjear.com
+# Chatwoot en chat.invjear.com — estado del despliegue
 
-## Estado verificado: 2026-10-15
+Comprobado el 15 de octubre de 2026 en el VPS `srv1656045`.
 
-- Host actual del inventario: `invjear.com`
-- Servidores de nombres: `helios.dns-parking.com`, `aster.dns-parking.com` (Hostinger)
-- IPv4 pública del VPS: `2.24.88.110`
-- `invjear.com` y `www.invjear.com` ya usan esa dirección.
-- `chat.invjear.com`: **registro A no publicado** en los servidores autoritativos a la hora de la revisión.
-- Virtual host HTTP de `chat.invjear.com` creado en `/etc/nginx/sites-available/chat.invjear.com` y habilitado.
-- Solicitudes HTTP a la raíz del nuevo subdominio devuelven 503 por seguridad; los retos ACME de `/.well-known/acme-challenge/` devuelven 200.
-- `/health` de Chatwoot devuelve HTTP 200 en la dirección privada `127.0.0.1:3100`.
-- La web y API de inventario siguen funcionando sin cambios.
-- El certificado de `invjear.com` solo incluye `invjear.com` y `www.invjear.com`, **no** cubre el nuevo subdominio.
+## Preparación finalizada
 
-## Único registro DNS que falta
+- DNS de Hostinger: `chat.invjear.com` tiene un registro A autoritativo hacia `2.24.88.110` con TTL de 14400 segundos.
+- Certificado TLS de Let's Encrypt emitido para `chat.invjear.com`; válido hasta 2027-01-13.
+- Simulación de renovación con Certbot: **correcta**. Timer de Certbot habilitado y deploy hook para recargar Nginx al renovar.
+- Nginx: vhost independiente para el nuevo subdominio con HTTPS, redirección HTTP -> HTTPS y proxy a `127.0.0.1:3100`.
+- Chatwoot: `FRONTEND_URL=https://chat.invjear.com`, `FORCE_SSL=true`, `ENABLE_ACCOUNT_SIGNUP=false`.
+- Rails, Sidekiq, PostgreSQL y Redis de Chatwoot levantados; puerto 3100 expuesto solo en localhost.
+- `https://chat.invjear.com/health`: HTTP 200 con certificado validado **antes** de instalar autenticación temporal de onboarding.
+- `https://invjear.com/health`: HTTP 200, inventario sin cambios.
 
-Agregar en Hostinger hPanel, sin editar registros de inventario:
+## Protección temporal del onboarding
 
-| Campo | Valor |
-| --- | --- |
-| Dominio | invjear.com |
-| Tipo | A |
-| Nombre / Host | chat |
-| Apunta a | 2.24.88.110 |
-| TTL | Predeterminado |
+Como todavía no hay cuenta administradora, el sitio HTTPS está protegido por HTTP Basic Auth en el vhost de Nginx para impedir que un tercero se registre como primer administrador. **Nunca guardar el nombre de usuario ni contraseña temporal en GitHub**. Los secretos están gestionados únicamente en el servidor y se entregan al propietario de manera temporal.
 
-Ruta de Hostinger (puede variar según el plan): **Dominios > Portafolio de dominios > Administrar invjear.com > DNS / Nameservers > Registros DNS**. Si está asociado a un alojamiento web, usar **Sitios web > sitio > Avanzado > Editor de zona DNS**.
+- Usuario autorizado: propietario del negocio; crear cuenta propia en el asistente de Chatwoot.
+- La credencial de Basic Auth **NO** es la contraseña permanente del administrador.
+- Al terminar el registro y verificar un login real, retirar `auth_basic` y `auth_basic_user_file` del bloque HTTPS, comprobar con `nginx -t`, y recargar Nginx.
+- Dejar `ENABLE_ACCOUNT_SIGNUP=false` para prevenir altas no autorizadas, salvo que un flujo documentado requiera un cambio temporal y controlado.
+- No mostrar credenciales personales ni API tokens en logs, commits o mensajes operativos.
 
-No reemplazar la zona DNS completa, no alterar `@`, `www`, MX, SPF ni registros existentes.
+## Próximo paso de ventas
 
-Documentación del proveedor: https://www.hostinger.com/es/support/4468886-como-administrar-registros-a-en-hpanel-hostinger/
+1. Crear primera cuenta de administrador desde el asistente web en HTTPS, bajo la protección temporal.
+2. Comprobar cuenta e identificar ID de la cuenta de SoftMobile.
+3. Aplicar 8 etiquetas, 11 respuestas rápidas, 7 atributos y 1 regla inicialmente desactivada de `integrations/softmobile/manifest.json`.
+4. Validar en la interfaz los 27 registros y probar su idempotencia.
+5. Conectar oficialmente las bandejas Meta/WhatsApp/Instagram; probar mensajes entrantes y salientes.
+6. Integrar inventario/precios validados antes de automatizar cotizaciones, reservas y promesas de entrega.
 
-## Pasos posteriores (solo cuando el A ya sea visible)
-
-1. Verificar `dig @helios.dns-parking.com +short chat.invjear.com A`; debe devolver `2.24.88.110`.
-2. Ejecutar Certbot usando `--webroot -w /var/www/letsencrypt -d chat.invjear.com` y una cuenta de notificación HTTPS válida. No intentar emitir antes de configurar DNS.
-3. Confirmar `/etc/letsencrypt/live/chat.invjear.com/fullchain.pem` y `privkey.pem`; comprobar que existe también `/etc/letsencrypt/ssl-dhparams.pem`.
-4. Copiar `nginx-https.conf.example` al vhost nuevo (guardar un respaldo previo), ejecutar `nginx -t`; aplicar `systemctl reload nginx` solo si pasa. Mantener intacto `/etc/nginx/sites-available/invjear.com`.
-5. En `/opt/chatwoot-softmobile/.env`, cambiar solo `FRONTEND_URL=https://chat.invjear.com` y `FORCE_SSL=true`, conservar todas las claves y secretos ya generados.
-6. `cd /opt/chatwoot-softmobile && docker compose up -d --force-recreate rails sidekiq`.
-7. Verificar con `curl -I https://chat.invjear.com/health`, navegador, certificados, WebSocket, login, y estado del inventario.
-8. Dar de alta un administrador por un flujo seguro y posteriormente configurar bandejas y el embudo comercial.
-
-Hasta completar estos pasos, **no afirmar que el sitio público está operativo**.
+No activar automatizaciones de envío sin confirmar primero los canales y las restricciones de mensajería.
