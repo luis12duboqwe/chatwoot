@@ -1,0 +1,33 @@
+name: SoftMobile Sales MVP
+
+on:
+  push:
+    paths:
+      - 'integrations/softmobile/**'
+      - '.github/workflows/softmobile-sales-mvp.yml'
+  pull_request:
+    paths:
+      - 'integrations/softmobile/**'
+      - '.github/workflows/softmobile-sales-mvp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-bootstrap:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/softmobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax
+        run: python -m compileall -q bootstrap.py test_bootstrap.py
+      - name: Unit tests
+        run: python -m unittest -v test_bootstrap.py
+      - name: Verify offline plan
+        run: python bootstrap.py --plan
