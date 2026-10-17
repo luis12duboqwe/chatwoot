@@ -69,6 +69,14 @@ class AutoImproverTests(unittest.TestCase):
   self.assertEqual(a.discover([sample],self.pack),[])
   self.assertEqual(a.discover([dict(sample,category="unsafe_claim")],a.default_pack()),[])
   self.assertEqual(a.discover([dict(sample,bot_sample="Una respuesta distinta")],a.default_pack()),[])
+ def test_new_payment_intent_flag_can_feed_bounded_fix(self):
+  issue={"bot_message_id":320,"status":"pending_human_review",
+         "category":"payment_choice_ignored","customer_sample":"Tarjeta",
+         "bot_sample":"Perfecto, sería para retirar. Tengo anotado el Samsung S22 Ultra."}
+  plan=a.discover([issue],a.default_pack())
+  self.assertEqual(plan,[{"when":"tarjeta","intent":"payments","previous_gate":"checkout",
+                          "reply":a.ALLOWED_REPLIES["tarjeta"]}])
+  self.assertEqual(a.discover([dict(issue,customer_sample="Mi tarjeta es 41111111")],a.default_pack()),[])
  def test_safety_pattern_always_checks_outputs(self):
   self.assertIsNotNone(a.CONFIRM_SAFE.search("precio final es L20000"))
   self.assertIsNotNone(a.CONFIRM_SAFE.search("te lo reservé"))
