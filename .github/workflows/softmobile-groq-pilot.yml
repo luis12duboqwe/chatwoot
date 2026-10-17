@@ -26,6 +26,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: Syntax check
-        run: python -m compileall -q groq_pilot.py test_groq_pilot.py configurar_clave_groq.py test_configurar_clave_groq.py chatwoot_ai_bridge.py test_chatwoot_ai_bridge.py
+        run: python -m compileall -q groq_pilot.py test_groq_pilot.py configurar_clave_groq.py test_configurar_clave_groq.py chatwoot_ai_bridge.py test_chatwoot_ai_bridge.py quality_auditor.py test_quality_auditor.py
       - name: Unit tests (without any keys or network)
-        run: python -m unittest -v test_groq_pilot test_configurar_clave_groq test_chatwoot_ai_bridge
+        run: python -m unittest -v test_groq_pilot test_configurar_clave_groq test_chatwoot_ai_bridge test_quality_auditor
