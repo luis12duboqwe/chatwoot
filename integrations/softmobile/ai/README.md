@@ -58,3 +58,55 @@ en `/etc/softmobile/groq.env` con permisos 0600 (carpeta 0700).
 Luego prueba la conexión con un mensaje ficticio y muestra una sugerencia
 solo interna. Si no puede conectar, conserva el bot actual sin cambios.
 Nunca pegar la clave en ChatGPT, GitHub, la línea de comandos ni en archivos públicos.
+
+## Integración activa: sugerencias privadas dentro de Chatwoot (17 oct 2026)
+Archivo: `chatwoot_ai_bridge.py`. Se instaló el servicio/timer de referencia en
+`/etc/systemd/system/softmobile-groq-pilot.{service,timer}`.
+Esta integración NO forma parte del motor Ruby original ni modifica sus respuestas públicas.
+
+### Límites fijos
+- Cuenta 2, bandeja 2, conversación piloto 3 solamente; comprobación doble en Rails.
+- Lee mensajes entrantes nuevos posteriores al cursor inicial, jamás históricos.
+- No envía mensajes a clientes. Solo crea notas de Chatwoot con `private:true` y
+  marcador de idempotencia `[SMAI:<ID>]`.
+- Si hay multimedia, texto vacío, datos personales detectados o API fallida,
+  no hace envíos. El filtro de datos sensibles es básico: no habilitar a clientes reales
+  hasta terminar evaluación de privacidad.
+- Máximo 30 solicitudes diarias al proveedor y una por ejecución.
+- Guardado del cursor local en `.pilot_bridge_state.json` (0600, no subir a GitHub).
+- El proveedor puede generar sugerencias incorrectas: un vendedor debe verificarlas,
+  especialmente precios, existencias, garantías, envíos, financiación y reservas.
+
+### Comprobaciones del VPS
+```bash
+cd /opt/softmobile-waha-test/laboratorio-ia
+python3 -m unittest -v test_groq_pilot test_configurar_clave_groq test_chatwoot_ai_bridge
+systemctl status softmobile-groq-pilot.timer --no-pager
+journalctl -u softmobile-groq-pilot.service -n 30 --no-pager
+```
+
+### Suspender inmediatamente sin afectar el bot comercial
+```bash
+sudo systemctl disable --now softmobile-groq-pilot.timer
+```
+
+### Reanudar exclusivamente después de revisar
+```bash
+sudo systemctl enable --now softmobile-groq-pilot.timer
+```
+Para una revisión puntual del piloto:
+```bash
+sudo systemctl start softmobile-groq-pilot.service
+```
+
+### Auditoría real
+Se verificó en Chatwoot un mensaje de laboratorio
+`[SMAI:DEMO-1]`: una única nota guardada, `private=true`, `outgoing`.
+Una segunda escritura devolvió `duplicate` sin crear otra nota.
+Se detectó y corrigió un problema de ordenación heredada del modelo Chatwoot:
+la fuente usa `maximum(:id)` para inicializar y `reorder(id: :asc)` para nuevas entradas.
+El cursor fue migrado al máximo de mensajes entrantes existentes y una ejecución real
+posterior devolvió `no_new_messages`. Las respuestas públicas continúan en el motor Ruby.
+
+Importante: el análisis automático de calidad/aprendizaje continuo todavía es una etapa
+posterior. Este servicio es el puente de sugerencias internas, no un editor autónomo del bot.
