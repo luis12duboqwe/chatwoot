@@ -299,7 +299,8 @@ def test_gate(runner=subprocess.run):
  journeys=DATA/"test_full_customer_journeys.rb"
  live=DATA/"test_live_buyer_20261017.rb"
  synthetic_payment=DATA/"test_synthetic_payment_menu.rb"
- if not all(x.is_file() for x in (bot,regression,historical,journeys,live,synthetic_payment)):
+ future=DATA/"test_future_customer_scenarios.rb"
+ if not all(x.is_file() for x in (bot,regression,historical,journeys,live,synthetic_payment,future)):
   return {"status":"missing_test_files"}
  source=bot.read_text(encoding="utf8")
  separator="\nif ENV['SM_MODE']=='test'\n"
@@ -318,7 +319,9 @@ def test_gate(runner=subprocess.run):
   (base,source.split(separator)[0]+"\n"+live.read_text(encoding="utf8"),
    r"SM_LIVE_JOURNEY_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
   (base,source.split(separator)[0]+"\n"+synthetic_payment.read_text(encoding="utf8"),
-   r"SM_AUTOFIX_PAYMENT_MENU_TOTAL=(\d+) PASS=(\d+) FAIL=0")
+   r"SM_AUTOFIX_PAYMENT_MENU_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (base,source.split(separator)[0]+"\n"+future.read_text(encoding="utf8"),
+   r"SM_FUTURE_SCENARIOS_TOTAL=(\d+) PASS=(\d+) FAIL=0")
  ]
  counts=[]
  for cmd,stdin,regex in cases:
@@ -330,7 +333,7 @@ def test_gate(runner=subprocess.run):
   if process.returncode!=0 or not match or match.group(1)!=match.group(2):
    return {"status":"test_failed"}
   counts.append(int(match.group(1)))
- return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2],"customer_journeys":counts[3],"new_live_replays":counts[4],"autofix_payment_menu":counts[5]}
+ return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2],"customer_journeys":counts[3],"new_live_replays":counts[4],"autofix_payment_menu":counts[5],"synthetic_future":counts[6]}
 
 def notify_staff(last_bot_id,labels):
  """Single deduplicated private Chatwoot note; never sends customer messages."""
