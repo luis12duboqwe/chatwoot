@@ -287,3 +287,43 @@ As of this update: 72/72 Python tests passed; prior 57+5+7+20
 Ruby regression gates passed. All five pilot timers active.
 The only remaining real transport limitation is that no new WhatsApp handset
 receipt has been confirmed in this session.
+
+
+## New pilot buyer test and verified patches (2026-10-17 22:08-22:13 UTC)
+
+The buyer asked for an iPhone 16 Pro with 256GB, titanium finish then gold,
+delivery in Comayagua, gave an address landmark, and answered "Si".
+
+Faults confirmed in original Chatwoot replies:
+1. Titanium preference was ignored; the bot asked color again.
+2. A shipping landmark was not acknowledged; bot reverted to a generic recap.
+3. Affirmative "Si" repeated the previous summary.
+4. The first issue independently triggered an exact-repeat audit flag.
+
+Pilot fixes: accept generic titanium and ask the tone without claiming stock;
+acknowledge delivery landmarks without echoing the private location or promising
+shipping coverage; clarify an ambiguous payment answer or stay silent after
+a completed handoff rather than repeating the summary.
+
+Security: only pilot Chatwoot conversation #3. No public AI message send;
+no automated price, stock, bank approval, reserve or shipping confirmation.
+Original customer landmark is not included in GitHub test cases.
+
+Verification:
+- 57 existing Ruby tests, 5 commercial regressions, 7 historical replays,
+  20 completed customer journeys, and 11 new buyer replay checks: all passed.
+- 75 Python tests across AI bridge, quality auditor, bounded autofix,
+  privacy filters and transport observer: all passed.
+- Post-deployment verification passed; restricted rollback backup retained.
+- New automated audit: 9 replies examined, 4 quality flags linked to the
+  3 observed faults. Groq reviewed 3 sanitized samples; private QA note added.
+- 15 historical audit flags: 8 deployed pending live retest, 7 historical
+  regressions passed pending live retest, no unreviewed pending issue.
+- All five systemd pilot timers active.
+
+Address handling: delivery landmarks are stripped down to coarse category labels
+before external AI review. This is best-effort redaction, not complete PII protection.
+
+Next step: fresh customer messages in the already approved pilot WhatsApp chat
+to independently verify transport receipt and corrected reply behavior.
+Chatwoot sent status alone is not proof of physical WhatsApp delivery.
