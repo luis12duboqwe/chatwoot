@@ -224,3 +224,30 @@ sudo systemctl disable --now softmobile-auto-improver.timer
   `fix_deployed_pending_live_test`. **Ninguna es evidencia de prueba real
   por WhatsApp**, la verificación final requiere una conversación nueva.
 - 56 pruebas Python locales superadas tras estas mejoras.
+
+## Verificación reforzada del piloto — 17 octubre 2026
+
+- Chatwoot público verificó HTTP 200.
+- WAHA respondió HTTP 200 a su endpoint autenticado y su sesión tiene estado
+  `WORKING`. El endpoint sin credenciales devuelve HTTP 401 (esperado).
+- Mensajes históricos de Chatwoot: 40 salientes públicos, todos con estado
+  `sent`. **Esto no prueba entrega efectiva ni lectura en el teléfono.**
+  No se enviaron nuevos mensajes a números externos para esta comprobación.
+- Se añadieron veinte recorridos completos simulados de clientes:
+  selección de modelo y capacidad, cambios de variante, equipo existente vs.
+  solicitado, consultas múltiples, stock, precio, elección de efectivo o
+  transferencia, tarjeta, bancos, retiro vs. envío, cambios de entrega,
+  consulta tras derivación, garantía, fotografías, datos sensibles y cancelación.
+- Tanto el auditor como el mejorador exigen pasar ahora cuatro barreras antes
+  de cualquier autocorrección: 57 tests Ruby base, 5 comerciales, 7
+  conversaciones históricas y **20 recorridos de cliente nuevos**.
+- Se afinó la detección de `exact_repeat` para no alertar por un simple
+  agradecimiento, saludo, confirmación ni una pregunta idéntica repetida.
+- La suite Python de integraciones y seguridad pasó 57/57 pruebas.
+
+**Pendiente físico real:** verificar una conversación nueva desde el teléfono
+piloto hasta el acuse/entrega WhatsApp. Los estados `sent` y los replays Rails
+no deben citarse como `delivered`. No habilitar la integración en otras bandejas.
+
+**Inventario de aliados:** aún no hay fuente oficial y autorizada con SKU, precio
+y disponibilidad; se siguen bloqueando las cotizaciones automáticas.
