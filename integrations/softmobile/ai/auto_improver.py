@@ -26,6 +26,7 @@ HISTORY=DATA/"autofix-history.json"
 PACK=DATA/"auto-policy-rules.json"
 REGRESSION=DATA/"test_quality_flows.rb"
 HISTORICAL=DATA/"test_historical_replay.rb"
+JOURNEYS=DATA/"test_full_customer_journeys.rb"
 BACKUPS=Path("/opt/softmobile-waha-test/quality-backups")
 LOCK=DATA/"autofix.lock"
 TIMER="softmobile-waha-catalog-notes.timer"
@@ -160,6 +161,9 @@ def gates(candidate):
   (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
     "RAILS_ENV=production bundle exec rails runner -"],
     candidate.split(separator)[0]+"\n"+HISTORICAL.read_text(),r"HISTORICAL_REPLAY_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
+    "RAILS_ENV=production bundle exec rails runner -"],
+    candidate.split(separator)[0]+"\n"+JOURNEYS.read_text(),r"SM_JOURNEYS_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
  ]
  checks=[]
  for cmd,code,rx in suites:
@@ -169,7 +173,7 @@ def gates(candidate):
   if r.returncode!=0 or not m or m.group(1)!=m.group(2):
    return {"status":"regression_failed"}
   checks.append(int(m.group(1)))
- return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2]}
+ return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2],"customer_journeys":checks[3]}
 
 def scenario_check(src,rule):
  sep="\nif ENV['SM_MODE']=='test'\n"
