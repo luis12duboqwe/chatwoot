@@ -233,6 +233,7 @@ def summarize(state,findings,stats):
  summary={"pilot":3,"time":now(),"scanned_total":state["scanned"],
           "llm_calls_today":state["api_calls"],"findings_total":len(findings),
           "pending_review":sum(x["status"]=="pending_human_review" for x in findings),
+          "deployed_pending_live_test":sum(x["status"]=="fix_deployed_pending_live_test" for x in findings),
           "by_category":{},"latest_run":stats}
  for f in findings:summary["by_category"][f["category"]]=summary["by_category"].get(f["category"],0)+1
  return summary
