@@ -19,6 +19,8 @@ class BridgeTests(unittest.TestCase):
         for m in blocked:
             with self.subTest(m=m[:30]):
                 self.assertIsNone(bridge.safe_text(m))
+        for m in ("Hola", "Ok", "Efectivo", "Galerías"):
+            self.assertIsNone(bridge.safe_text(m))
 
     def test_latest_cursor_parses_expected_rails(self):
         def fake_rails(code):
@@ -33,7 +35,8 @@ class BridgeTests(unittest.TestCase):
         def fake_rails(code):
             self.assertIn("id > ?",code)
             self.assertIn("private: false",code)
-            self.assertIn("reorder(id: :asc)",code)
+            self.assertIn("reorder(id: :desc)",code)
+            self.assertIn("age_seconds:", code)
             return {"id":20,"content":"Samsung","has_attachments":False}
         with patch.object(bridge, "rails_run", side_effect=fake_rails):
             self.assertEqual(bridge.get_next(13)["id"],20)
@@ -51,6 +54,8 @@ class BridgeTests(unittest.TestCase):
             self.assertIn("unless confirmed && confirmed.private?",code)
             self.assertNotIn("private:false}).perform",code)
             self.assertIn("invalid inbound",code)
+            self.assertIn("superseded inbound",code)
+            self.assertIn("inbound.maximum(:id)==token.to_i",code)
             return {"status":"created","private":True}
         with patch.object(bridge,"rails_run", side_effect=fake_rails):
             self.assertEqual(bridge.put_private("14",sample),"created")
@@ -89,7 +94,7 @@ class BridgeTests(unittest.TestCase):
                 mock_reply={"suggested_reply":"Un vendedor puede confirmar.", "human_review":True}
                 with patch.dict(bridge.os.environ,{"SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED":"true"}):
                     with patch.object(bridge,"get_next",side_effect=[
-                        {"id":14,"content":"Quiero el Samsung S22 Ultra 256 GB","has_attachments":False},
+                        {"id":14,"content":"Quiero el Samsung S22 Ultra 256 GB","age_seconds":5,"has_attachments":False},
                         {"id":None}
                     ]), patch.object(bridge,"suggest",return_value=mock_reply) as sg, \
                          patch.object(bridge,"stored_key",return_value="mock") as sk, \
@@ -108,11 +113,40 @@ class BridgeTests(unittest.TestCase):
                 with patch.dict(bridge.os.environ,{"SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED":"true"}):
                     with patch.object(bridge,"get_next",return_value={
                         "id":14,"content":"Escribime al 9999-1234",
-                        "has_attachments":False
+                        "age_seconds":5,"has_attachments":False
                     }), patch.object(bridge,"suggest") as fake_groq:
                         self.assertEqual(bridge.run_once(),"skipped_sensitive_or_multimedia")
                         self.assertEqual(bridge.load_state()["after_id"],14)
                         fake_groq.assert_not_called()
+
+    def test_stale_message_is_skipped_without_api(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(bridge, "STATE", Path(directory)/"state.json"):
+                bridge.save_state({"pilot":3,"after_id":13,"day":"","calls":0})
+                with patch.dict(bridge.os.environ, {"SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED":"true"}):
+                    with patch.object(bridge, "get_next", return_value={
+                        "id":212,"content":"¿Busco el iPhone 14 Pro Max?",
+                        "age_seconds":480,"has_attachments":False}), \
+                         patch.object(bridge, "suggest") as api, \
+                         patch.object(bridge, "put_private") as note:
+                        self.assertEqual(bridge.run_once(), "skipped_stale")
+                        self.assertEqual(bridge.load_state()["after_id"], 212)
+                        self.assertEqual(bridge.load_state()["calls"], 0)
+                        api.assert_not_called()
+                        note.assert_not_called()
+
+    def test_short_acknowledgment_is_not_sent_to_api(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(bridge, "STATE", Path(directory)/"state.json"):
+                bridge.save_state({"pilot":3,"after_id":190,"day":"","calls":0})
+                with patch.dict(bridge.os.environ, {"SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED":"true"}):
+                    with patch.object(bridge, "get_next", return_value={
+                        "id":212,"content":"Ok","age_seconds":8,
+                        "has_attachments":False}), \
+                         patch.object(bridge, "suggest") as api:
+                        self.assertEqual(bridge.run_once(), "skipped_sensitive_or_multimedia")
+                        self.assertEqual(bridge.load_state()["after_id"], 212)
+                        api.assert_not_called()
 
     def test_transient_failure_has_daily_budget(self):
         with tempfile.TemporaryDirectory() as dir:
@@ -121,7 +155,7 @@ class BridgeTests(unittest.TestCase):
                 with patch.dict(bridge.os.environ,{"SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED":"true"}):
                     with patch.object(bridge,"get_next",return_value={
                             "id":14,"content":"¿Tienen iPhone 14 Pro Max?",
-                            "has_attachments":False
+                            "age_seconds":5,"has_attachments":False
                         }), patch.object(bridge,"stored_key",return_value="test"), \
                          patch.object(bridge,"suggest",side_effect=bridge.PilotError("timeout")):
                         self.assertEqual(bridge.run_once(),"safe_fallback")
