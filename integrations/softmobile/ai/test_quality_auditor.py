@@ -31,6 +31,12 @@ class QualityTests(unittest.TestCase):
  def test_repeated_outbound_different_messages(self):
   p=dict(self.cash,incoming="¿Qué opciones tengo?",previous="")
   self.assertIn("exact_repeat",q.detect(q.sanitize_pair(p),p["reply"]))
+ def test_same_customer_question_is_not_false_repeat(self):
+  sample=dict(self.cash,incoming="¿Tienen equipo?",previous="¿Tienen equipo?")
+  self.assertNotIn("exact_repeat",q.detect(q.sanitize_pair(sample),sample["reply"]))
+  ack=dict(self.cash,incoming="Gracias",previous="Precio del equipo")
+  self.assertNotIn("exact_repeat",q.detect(q.sanitize_pair(ack),ack["reply"]))
+
  def test_personal_data_skipped(self):
   for incoming in ("Mi teléfono es 9999-1234","Mi nombre es Fernando",
                    "Mi correo es usuario@example.com","Mi colonia es Los Pinos",
