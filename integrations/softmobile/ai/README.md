@@ -251,3 +251,39 @@ no deben citarse como `delivered`. No habilitar la integración en otras bandeja
 
 **Inventario de aliados:** aún no hay fuente oficial y autorizada con SKU, precio
 y disponibilidad; se siguen bloqueando las cotizaciones automáticas.
+
+## Pilot autonomous quality and transport monitoring — 17 October 2026
+
+Additional read-only monitor:
+- `pilot_transport_monitor.py` runs every ten minutes via
+  `softmobile-pilot-transport.timer`; it checks Chatwoot #3 and authenticated
+  WAHA session state, but **never sends WhatsApp messages**, reveals credentials
+  or claims that `sent` means physically delivered.
+- The latest inbound message category is classified *inside Rails*, without
+  copying the buyer's raw text. Short acknowledgments need no extra public bot reply.
+- The observer records metadata in `quality/e2e-transport.json` (permissions 0600).
+  An older inbound without a corresponding bot or human reply is marked
+  `unanswered_inbound_needs_review`, not automatically interpreted as a bug.
+
+Broader automatic issue detection:
+- Explicit payment choices not acknowledged (`payment_choice_ignored`).
+- Explicit color and capacity corrections which the reply failed to respect.
+- `payment_choice_ignored` may enter the bounded autofix catalog only for
+  exact approved expressions and checkout context. Groq cannot inject Ruby.
+
+Private quality-score snapshots:
+- The auditor calculates a heuristic **regression signal** (0–100) for new
+  non-sensitive bot messages, using conservative weighted issue detections.
+- Saved as metadata-only in `quality/quality-score-history.json` with an initial
+  historical baseline separate from later new responses.
+- Initial baseline: 32 of 33 historical bot replies eligible for analysis;
+  score 91.4/100, 10 candidates with rule-based alerts.
+  **It is NOT a validated sales conversion or actual quality percentage.**
+- The signal will enable tracking whether new batches show more or fewer
+  suspicious patterns; no change is automatically deemed an improvement solely
+  because a score increases.
+
+As of this update: 72/72 Python tests passed; prior 57+5+7+20
+Ruby regression gates passed. All five pilot timers active.
+The only remaining real transport limitation is that no new WhatsApp handset
+receipt has been confirmed in this session.
