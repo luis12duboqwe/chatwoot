@@ -15,7 +15,8 @@ class BridgeTests(unittest.TestCase):
         blocked = ["", "ok", "x" * 601, "Mi celular 9999-1234",
                    "mi correo hola@example.com", "http://example.org",
                    "mi contraseña es 123", "Mi identidad es secreta",
-                   "tarjeta 4111111111111111"]
+                   "tarjeta 4111111111111111","Gasolinera de ejemplo",
+                   "Frente al parque en Comayagua", "Colonia las Palmas"]
         for m in blocked:
             with self.subTest(m=m[:30]):
                 self.assertIsNone(bridge.safe_text(m))
