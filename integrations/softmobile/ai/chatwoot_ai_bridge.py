@@ -50,8 +50,8 @@ def get_next(after_id):
     program = f"""require 'json'
 c=Conversation.find_by(id:{CONV_ID})
 raise 'unexpected account/inbox' unless c && c.account_id=={ACCOUNT_ID} && c.inbox_id=={INBOX_ID}
-m=c.messages.where(message_type: :incoming, private: false).where('id > ?', {after_id}).reorder(id: :asc).first
-puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], has_attachments:m.attachments.exists?}} : {{id:nil}}).to_json
+m=c.messages.where(message_type: :incoming, private: false).where('id > ?', {after_id}).reorder(id: :desc).first
+puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], age_seconds:(Time.now.utc-m.created_at).to_i, has_attachments:m.attachments.exists?}} : {{id:nil}}).to_json
 """
     return rails_run(program)
 
@@ -66,6 +66,13 @@ puts '{PREFIX}' + {{id:last_id}}.to_json
 
 def safe_text(raw):
     if not isinstance(raw, str) or not 4 <= len(raw) <= 600 or PERSONAL.search(raw):
+        return None
+    # Short acknowledgments are not useful for an isolated AI suggestion.
+    if raw.strip().casefold().strip(" .!?¿¡").lower() in {
+        "hola", "buenas", "ok", "okay", "listo", "sí", "si", "gracias",
+        "efectivo", "tarjeta", "envío", "envio", "retiro", "negro", "azul",
+        "morado", "transferencia", "galerías", "galerias"
+    }:
         return None
     return raw
 
@@ -85,7 +92,9 @@ token=Base64.strict_decode64('{marker_b64}')
 body=Base64.strict_decode64('{b64}')
 raise 'invalid body' unless body.start_with?("[SMAI:#{'{'}token{'}'}]") && body.bytesize < 3000
 if {message_check} == false
-  raise 'invalid inbound' unless c.messages.where(id:token.to_i,message_type: :incoming,private:false).exists?
+  inbound=c.messages.where(message_type: :incoming,private:false)
+  raise 'invalid inbound' unless inbound.where(id:token.to_i).exists?
+  raise 'superseded inbound' unless inbound.maximum(:id)==token.to_i
 end
 scope=c.messages.where(private:true).where('content LIKE ?',"%[SMAI:#{'{'}token{'}'}]%")
 if scope.exists?
@@ -151,6 +160,11 @@ def run_once():
     if msg["id"] is None:
         return "no_new_messages"
     ident = int(msg["id"])
+    age = msg.get("age_seconds")
+    if type(age) is not int or age < 0 or age > 390:
+        state["after_id"] = ident
+        save_state(state)
+        return "skipped_stale"
     if msg.get("has_attachments") or not safe_text(msg.get("content", "")):
         state["after_id"] = ident
         save_state(state)
