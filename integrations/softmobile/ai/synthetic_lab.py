@@ -99,7 +99,7 @@ JUDGE_SYSTEM=(
 def utc_now():
  return datetime.now(timezone.utc).isoformat()
 
-def validate_cases(raw):
+def validate_cases(raw,min_turns=3):
  if not isinstance(raw,dict) or set(raw)!={"scenarios"}:raise ValueError("Scenario schema invalid")
  scenarios=raw["scenarios"]
  if not isinstance(scenarios,list) or not 1<=len(scenarios)<=MAX_BATCH:raise ValueError("Scenario size invalid")
@@ -108,7 +108,7 @@ def validate_cases(raw):
   if not isinstance(item,dict) or set(item)!={"category","messages"}:raise ValueError("Scenario keys invalid")
   if item["category"] not in CATEGORIES:raise ValueError("Category invalid")
   msgs=item["messages"]
-  if not isinstance(msgs,list) or not 3<=len(msgs)<=6:raise ValueError("Dialogue length invalid")
+  if min_turns not in (1,3) or not isinstance(msgs,list) or not min_turns<=len(msgs)<=6:raise ValueError("Dialogue length invalid")
   for m in msgs:
    if not isinstance(m,str) or not 2<=len(m.strip())<=160:raise ValueError("Message size invalid")
    if PERSONAL.search(m) or PERSONAL_SYNTH.search(m) or VENDOR_TURN.search(m) or re.search(r"https?://|@\w+|(?:\+?504)?[2389]\d{3}[\s-]?\d{4}",m,re.I):
@@ -170,8 +170,8 @@ def api_json(key,system,user,schema,schema_name,opener=request.urlopen):
  except (error.HTTPError,error.URLError,ValueError,KeyError,IndexError,TimeoutError,TypeError) as exc:
   raise RuntimeError("AI request failed safely") from exc
 
-def simulate(scenarios,runner=subprocess.run,source=BOT):
- validate_cases({"scenarios":scenarios})
+def simulate(scenarios,runner=subprocess.run,source=BOT,partial=False):
+ validate_cases({"scenarios":scenarios},min_turns=1 if partial else 3)
  # File content comes from local trusted deployed bot. Only synthetic JSON crosses
  # the runner and it is parsed as DATA, never eval'ed as Ruby or shell.
  ruby_source=source.read_text(encoding="utf8").split("\nif ENV['SM_MODE']=='test'\n")[0]
