@@ -1,0 +1,18 @@
+[Unit]
+Description=SoftMobile Groq synthetic conversation quality lab (pilot only)
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/softmobile/groq.env
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+Environment=SOFTMOBILE_LAB_ENABLED=true
+Environment=SOFTMOBILE_LAB_AI_ENABLED=true
+Environment=SOFTMOBILE_AI_MODEL=openai/gpt-oss-20b
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/synthetic_lab.py --run
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=175
