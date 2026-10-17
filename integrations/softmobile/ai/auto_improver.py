@@ -265,10 +265,22 @@ def deploy(candidate):
    os.chmod(tmp,oldmode);os.replace(tmp,LIVE)
   finally:
    if os.path.exists(tmp):os.unlink(tmp)
-  if gates(candidate)["status"]!="passed":
-   LIVE.write_bytes(current)
-   os.chmod(LIVE,oldmode)
-   raise RuntimeError("Rollback after post-deploy tests failed")
+  # Any exception after replacing the live file must restore the exact
+  # previous bytes atomically, not only a cleanly returned regression failure.
+  try:
+   result=gates(candidate)
+   if result["status"]!="passed":
+    raise RuntimeError("Rollback after post-deploy tests failed")
+  except BaseException:
+   restore_fd,restore_path=tempfile.mkstemp(prefix=".sm-rollback-",dir=LIVE.parent)
+   try:
+    with os.fdopen(restore_fd,"wb") as restore_file:
+     restore_file.write(current);restore_file.flush();os.fsync(restore_file.fileno())
+    os.chmod(restore_path,oldmode)
+    os.replace(restore_path,LIVE)
+   finally:
+    if os.path.exists(restore_path):os.unlink(restore_path)
+   raise
   return {"status":"deployed","backup_name":backup.name}
  finally:
   subprocess.run(["systemctl","start",TIMER],check=True)
