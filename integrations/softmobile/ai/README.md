@@ -47,3 +47,14 @@ Esto únicamente imprime una propuesta JSON; no escribe ni envía a clientes.
 
 **No se autoriza** activación global, seguimiento automático, descuentos,
 reservas, precios definitivos, cobros, fotografías ni promociones masivas.
+
+## Instalación segura de la clave en el VPS (sin revelar el token en el chat)
+El dueño entra al Terminal SSH de Hostinger y ejecuta:
+```bash
+sudo python3 /opt/softmobile-waha-test/laboratorio-ia/configurar_clave_groq.py
+```
+El instalador pide la clave con entrada oculta, valida el formato y la guarda solo
+en `/etc/softmobile/groq.env` con permisos 0600 (carpeta 0700).
+Luego prueba la conexión con un mensaje ficticio y muestra una sugerencia
+solo interna. Si no puede conectar, conserva el bot actual sin cambios.
+Nunca pegar la clave en ChatGPT, GitHub, la línea de comandos ni en archivos públicos.
