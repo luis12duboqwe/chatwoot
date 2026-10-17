@@ -27,7 +27,7 @@ STATE=DATA/"state.json"
 FINDINGS=DATA/"findings.json"
 REPORT=DATA/"summary.json"
 SCORE_HISTORY=DATA/"quality-score-history.json"
-ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20}
+ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20,"finish_color_not_understood":25,"shipping_reference_ignored":30,"affirmation_repeated_summary":20}
 CONVERSATION_ID=3
 MAX_SCAN=60
 MAX_LLM_DAILY=12
@@ -42,6 +42,9 @@ CONCERNS={
   "payment_choice_ignored": ("high","La respuesta no reconoce el método de pago elegido."),
   "color_change_ignored": ("medium","El bot mantuvo el color anterior después de una corrección explícita."),
   "capacity_change_ignored": ("medium","El bot mantuvo una capacidad antigua después de una corrección explícita."),
+  "finish_color_not_understood": ("medium","El bot ignoró una preferencia expresada como color titanium o titanio."),
+  "shipping_reference_ignored": ("medium","El cliente dio una referencia de envío y el bot no la reconoció."),
+  "affirmation_repeated_summary": ("medium","El bot repitió el resumen comercial tras una confirmación breve."),
 }
 CHOICES={"efectivo","transferencia","transferencias","tarjeta","con tarjeta","pago con tarjeta","por transferencia","en efectivo","pago en efectivo"}
 SAFE_TEMPLATES={
@@ -150,6 +153,9 @@ def normalize(text):
 def safe_line(value,max_len=MAX_PREVIEW):
  if not isinstance(value,str) or not value.strip() or len(value)>max_len:return None
  if PERSONAL.search(value):return None
+ # Keep only a generic landmark category. Never transmit or store a precise delivery reference.
+ landmark=re.search(r"\b(?:gasolinera|farmacia|parque|supermercado|hospital|frente a|cerca de)\b",value,re.I)
+ if landmark:return landmark.group(0).lower()+" [referencia omitida]"
  # Never forward payment references, addresses, names, IDs or customer private details.
  if re.search(r"\b(?:mi nombre|me llamo|soy [A-ZÁÉÍÓÚ][a-záéíóú]+|colonia|"
               r"residencial|n[uú]mero de casa|comprobante|rtn|"
@@ -161,6 +167,10 @@ def sanitize_pair(p):
  if not isinstance(p,dict) or any(type(p.get(k)) is not int for k in ("bot_id","inbound_id")):
   return None
  a,b,c=(safe_line(p.get(key,"")) for key in ("incoming","reply","previous"))
+ # A standard BOT question mentioning "colonia" is not a private address.
+ # Preserve the question as a generic template while excluding customer landmarks.
+ if not b and re.search(r"\ben qu[eé] colonia o zona ser[ií]a\b",normalize(p.get("reply",""))):
+  b="¿En qué colonia o zona sería?"
  if not a or not b:return None
  # Previous line is optional; do not send sensitive history.
  return {"bot_id":p["bot_id"],"inbound_id":p["inbound_id"],
@@ -185,6 +195,14 @@ def detect(pair,prior_reply=""):
  if gb_switch and not re.search(r"\b"+gb_switch.group(1)+r"\s*(?:gb|gigas)\b",reply):
   if any(re.search(r"\b"+gb+r"\s*(?:gb|gigas)\b",reply) for gb in ("64","128","256","512") if gb!=gb_switch.group(1)):
    hits.append("capacity_change_ignored")
+ if re.search(r"\b(?:titanio|titanium)\b",text) and re.search(r"\b(?:qu[eé] color prefer[ií]s|qu[eé] color busc[aá]s)\b",reply):
+  hits.append("finish_color_not_understood")
+ if (re.search(r"\b(?:gasolinera|farmacia|parque|supermercado|hospital|frente a|cerca de)\b",text)
+     and re.search(r"\b(?:en qu[eé] colonia|en qu[eé] zona|zona ser[ií]a)\b",normalize(prior_reply))
+     and "referencia" not in reply):
+  hits.append("shipping_reference_ignored")
+ if text in ("si","claro","exacto","correcto","asi es") and len(reply)>55 and reply==normalize(prior_reply):
+  hits.append("affirmation_repeated_summary")
  if text in LOCATIONS and ("envio" in reply or "envío" in reply):
   if not ("retir" in reply and ("envío" in reply or "envio" in reply) and "?" in pair["reply"]):
    hits.append("pickup_shipping_ambiguity")
@@ -279,7 +297,8 @@ def test_gate(runner=subprocess.run):
  regression=DATA/"test_quality_flows.rb"
  historical=DATA/"test_historical_replay.rb"
  journeys=DATA/"test_full_customer_journeys.rb"
- if not bot.is_file() or not regression.is_file() or not historical.is_file() or not journeys.is_file():
+ live=DATA/"test_live_buyer_20261017.rb"
+ if not all(x.is_file() for x in (bot,regression,historical,journeys,live)):
   return {"status":"missing_test_files"}
  source=bot.read_text(encoding="utf8")
  separator="\nif ENV['SM_MODE']=='test'\n"
@@ -294,7 +313,9 @@ def test_gate(runner=subprocess.run):
   (base,source.split(separator)[0]+"\n"+historical.read_text(encoding="utf8"),
    r"HISTORICAL_REPLAY_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
   (base,source.split(separator)[0]+"\n"+journeys.read_text(encoding="utf8"),
-   r"SM_JOURNEYS_TOTAL=(\d+) PASS=(\d+) FAIL=0")
+   r"SM_JOURNEYS_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (base,source.split(separator)[0]+"\n"+live.read_text(encoding="utf8"),
+   r"SM_LIVE_JOURNEY_TOTAL=(\d+) PASS=(\d+) FAIL=0")
  ]
  counts=[]
  for cmd,stdin,regex in cases:
@@ -306,7 +327,7 @@ def test_gate(runner=subprocess.run):
   if process.returncode!=0 or not match or match.group(1)!=match.group(2):
    return {"status":"test_failed"}
   counts.append(int(match.group(1)))
- return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2],"customer_journeys":counts[3]}
+ return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2],"customer_journeys":counts[3],"new_live_replays":counts[4]}
 
 def notify_staff(last_bot_id,labels):
  """Single deduplicated private Chatwoot note; never sends customer messages."""
