@@ -327,3 +327,61 @@ before external AI review. This is best-effort redaction, not complete PII prote
 Next step: fresh customer messages in the already approved pilot WhatsApp chat
 to independently verify transport receipt and corrected reply behavior.
 Chatwoot sent status alone is not proof of physical WhatsApp delivery.
+
+
+## Autonomous Groq synthetic conversation laboratory, 17 October 2026
+Run synthetic_lab.py every 30 minutes with the softmobile-synthetic-lab.timer.
+This is a **separate closed pilot**: account 2 / inbox 2 / conversation 3. No
+customer messages are transmitted to the generator; Groq produces fictional
+3-6 turn buyer dialogues across changing product variants, delivery, payment,
+objections, cancellation, financing and safety. The deployed Ruby bot runs each
+dialogue in an **isolated memory-only Rails runner**; no Chatwoot writes occur.
+Groq then separately grades the responses in structured JSON and proposes
+a safer answer and reproducible behavioral expectation.
+
+User messaging and live traffic remain controlled by the Ruby bot, not by the
+Groq API. No untrusted LLM Ruby source is evaluated or deployed.
+
+Limits: maximum 4 fictional scenarios per run, up to 5 Groq calls per run and
+160 Groq requests per UTC day from this laboratory, respecting provider 429s.
+All other active Groq processes have separate, conservative budgets. Groq
+free-usage limits are imposed by the provider; this configuration is not
+evidence of unlimited free inference. Stops requesting on exhaustion.
+
+Laboratory records are private root-mode JSON files in quality/:
+  synthetic-lab-state.json       0600, request budget and counters
+  synthetic-lab-issues.json      0600, synthetic-only simulated evidence
+  synthetic-lab-summary.json     0600, per-run metadata and findings
+  synthetic-lab.lock             0600, prevents parallel runs
+
+Reliability: scenario validation rejects attempts to impersonate the seller,
+actual personal identifiers, precise addresses, bank details, invented prices
+and currencies. Grade validation independently rejects unsafe commercial
+promises and suggestions. Invalid model-generated scenarios are discarded and
+substituted with known-safe fictional fixtures. Findings are tentative until
+the deterministic replay corroborates them; non-supported categories are
+kept for review, never automatically published.
+
+Bounded self-improvement integration: when a synthetic buyer selects
+"Transferencia" after receiving the fixed payment menu, the deterministic
+detector may propose the predefined safe transfer-choice reply via the
+**existing** auto_improver.py. It does not trust an AI-generated response or
+modify arbitrary code. The autofixer runs its full Ruby regression suites,
+stores a rollback backup, atomically installs the exact rule in the single
+pilot script, and then checks again. All other speculative findings remain
+unverified. The derived payment-menu rule was autonomously installed,
+after passing the previous 100 checks and specific replay. New persistent
+regression test_synthetic_payment_menu.rb adds 2 more checks.
+
+As of this step the root-owned lab has completed two real Groq cycles:
+10 API requests total (4 synthetic dialogues each cycle).
+It rejected four initially invalid model-generated scenarios; one
+preapproved payment-menu correction was installed by the bounded autofixer.
+No generated answer was sent to WhatsApp, and no actual stock, payment or
+price confirmation was made.
+
+To inspect:
+  python3 /opt/softmobile-waha-test/laboratorio-ia/synthetic_lab.py --status
+  journalctl -u softmobile-synthetic-lab.service -n 20 --no-pager
+To disable AI-generated synthetic testing only:
+  sudo systemctl disable --now softmobile-synthetic-lab.timer
