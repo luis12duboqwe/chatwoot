@@ -106,6 +106,21 @@ class QualityTests(unittest.TestCase):
  def test_disabled_command_causes_no_state_change(self):
   with patch.dict(q.os.environ,{"SOFTMOBILE_QUALITY_AUDIT_ENABLED":"false"}):
    self.assertEqual(q.main.__name__,"main")
+ def test_audit_notice_is_private_and_idempotent(self):
+  def check(ruby):
+   self.assertIn("c.account_id==2 && c.inbox_id==2",ruby)
+   self.assertIn("message_type: :outgoing,private:false",ruby)
+   self.assertIn("private:true",ruby)
+   self.assertIn("Messages::MessageBuilder.new(nil,c,",ruby)
+   self.assertIn("missing_bot_source",ruby)
+   return {"status":"created","private":True}
+  with patch.object(q,"rails_read",side_effect=check):
+   self.assertEqual(q.notify_staff(210,["payment_choice_repeat"]),"created")
+   with self.assertRaises(ValueError):
+    q.notify_staff(0,["payment_choice_repeat"])
+   with self.assertRaises(ValueError):
+    q.notify_staff(210,["unknown"])
+
  def test_report_has_no_raw_phone(self):
   candidate=q.report_issue(q.sanitize_pair(self.cash),"payment_choice_repeat")
   self.assertEqual(candidate["status"],"pending_human_review")
