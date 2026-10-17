@@ -26,6 +26,8 @@ DATA=ROOT/"quality"
 STATE=DATA/"state.json"
 FINDINGS=DATA/"findings.json"
 REPORT=DATA/"summary.json"
+SCORE_HISTORY=DATA/"quality-score-history.json"
+ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20}
 CONVERSATION_ID=3
 MAX_SCAN=60
 MAX_LLM_DAILY=12
@@ -37,8 +39,11 @@ CONCERNS={
   "pickup_shipping_ambiguity": ("medium","El cliente mencionó un punto físico, pero no se aclaró envío o retiro."),
   "unsafe_claim": ("high","La respuesta podría confirmar stock, cobro o reserva sin evidencia."),
   "exact_repeat": ("medium","Respuestas consecutivas iguales a preguntas distintas."),
+  "payment_choice_ignored": ("high","La respuesta no reconoce el método de pago elegido."),
+  "color_change_ignored": ("medium","El bot mantuvo el color anterior después de una corrección explícita."),
+  "capacity_change_ignored": ("medium","El bot mantuvo una capacidad antigua después de una corrección explícita."),
 }
-CHOICES={"efectivo","transferencia","tarjeta","con tarjeta","por transferencia","en efectivo"}
+CHOICES={"efectivo","transferencia","transferencias","tarjeta","con tarjeta","pago con tarjeta","por transferencia","en efectivo","pago en efectivo"}
 SAFE_TEMPLATES={
  "payment_choice_repeat":"Perfecto, anoté efectivo como forma de pago. Un asesor confirmará el precio y la disponibilidad antes de coordinar.",
  "pickup_shipping_ambiguity":"¿Preferís retirarlo en Mall Galerías o recibirlo por envío a esa zona? Un asesor confirmará los detalles antes de coordinar."
@@ -166,8 +171,20 @@ def detect(pair,prior_reply=""):
  reply=normalize(pair["reply"])
  previous=normalize(pair["previous"])
  hits=[]
- if text in CHOICES and ("efectivo" in reply and "transferencia" in reply and "tarjeta" in reply):
-  hits.append("payment_choice_repeat")
+ if text in CHOICES:
+  method="efectivo" if "efectivo" in text else ("transferenc" if "transferenc" in text else "tarjeta")
+  if ("efectivo" in reply and "transferencia" in reply and "tarjeta" in reply):
+   hits.append("payment_choice_repeat")
+  elif method not in reply and len(reply)>28:
+   hits.append("payment_choice_ignored")
+ color_switch=re.search(r"\b(?:mejor|cambio|prefiero)\s+(?:(?:el|en|a|color)\s+)*(negro|morado|azul|blanco|verde)\b",text)
+ if color_switch and color_switch.group(1) not in reply and any(
+     re.search(r"\b"+old_color+r"\b",reply) for old_color in ("negro","morado","azul","blanco","verde") if old_color!=color_switch.group(1)):
+  hits.append("color_change_ignored")
+ gb_switch=re.search(r"\b(?:mejor|cambio|prefiero)\s+(?:(?:el|de|a|la)\s+)*(64|128|256|512)\s*(?:gb|gigas)\b",text)
+ if gb_switch and not re.search(r"\b"+gb_switch.group(1)+r"\s*(?:gb|gigas)\b",reply):
+  if any(re.search(r"\b"+gb+r"\s*(?:gb|gigas)\b",reply) for gb in ("64","128","256","512") if gb!=gb_switch.group(1)):
+   hits.append("capacity_change_ignored")
  if text in LOCATIONS and ("envio" in reply or "envío" in reply):
   if not ("retir" in reply and ("envío" in reply or "envio" in reply) and "?" in pair["reply"]):
    hits.append("pickup_shipping_ambiguity")
@@ -235,6 +252,16 @@ def report_issue(pair,category,proposal=None):
              "expected_behavior":(proposal or {}).get("test_expectation",message)[:220],
              "forbidden_current_reply":pair["reply"][:300]
          },"detected_at":now()}
+
+def score_hits(hits):
+ """Heuristic regression signal, NOT a verified sales-quality percentage."""
+ return max(0,100-sum(ISSUE_PENALTIES.get(label,0) for label in set(hits)))
+
+def score_summary(scores):
+ if not scores:return {"evaluated":0,"heuristic_score":None,"flagged":0}
+ return {"evaluated":len(scores),
+         "heuristic_score":round(sum(v for v,_ in scores)/len(scores),1),
+         "flagged":sum(bool(labels) for _,labels in scores)}
 
 def summarize(state,findings,stats):
  summary={"pilot":3,"time":now(),"scanned_total":state["scanned"],
@@ -327,6 +354,7 @@ def run(dry=False,use_llm=False,run_tests=False,notify=False):
  result=fetch_pairs(state["last_bot_id"])
  pairs=result["pairs"];stats={"examined":len(pairs),"flagged_new":0,"api_used":0,"skipped_private":0}
  keys={i["id"] for i in findings}
+ scores=[]
  new_labels=[]
  last_reply=""
  candidates=[]
@@ -336,6 +364,7 @@ def run(dry=False,use_llm=False,run_tests=False,notify=False):
    stats["skipped_private"]+=1
    continue
   rules=detect(clean,last_reply)
+  scores.append((score_hits(rules),rules))
   last_reply=clean["reply"]
   if rules and any(hashlib.sha256(f'{clean["bot_id"]}:{rule}'.encode()).hexdigest()[:16] not in keys for rule in rules):
    priority=max(3 if CONCERNS[label][0]=="high" else 2 for label in rules)
@@ -353,7 +382,13 @@ def run(dry=False,use_llm=False,run_tests=False,notify=False):
    if issue["id"] not in keys:
     findings.append(issue);keys.add(issue["id"]);stats["flagged_new"]+=1
     new_labels.append(label)
+ stats["quality_signal"]=score_summary(scores)
  if not dry:
+  if scores:
+   history=_load(SCORE_HISTORY,[])
+   if not isinstance(history,list):raise RuntimeError("Score history malformed")
+   history.append({"at":now(),"scope":"historical_initial" if state["last_bot_id"]==0 else "new_replies",**stats["quality_signal"]})
+   _atomic_json(SCORE_HISTORY,history[-50:])
   if run_tests:
    stats["regression_gate"]=test_gate()
    if stats["regression_gate"].get("status")=="passed" and stats["regression_gate"].get("historical_cases")==7:
@@ -374,16 +409,40 @@ def run(dry=False,use_llm=False,run_tests=False,notify=False):
   _atomic_json(REPORT,summarize(state,findings,stats))
  return summarize(state,findings,stats)
 
+def build_baseline():
+ """Read-only historical reference; not evidence of present-day quality."""
+ history=_load(SCORE_HISTORY,[])
+ if not isinstance(history,list):raise RuntimeError("Score history malformed")
+ existing=next((x for x in history if x.get("scope")=="historical_initial"),None)
+ if existing:return existing
+ data=fetch_pairs(0)
+ last_reply=""
+ scores=[]
+ for item in data["pairs"]:
+  clean=sanitize_pair(item)
+  if not clean:continue
+  hits=detect(clean,last_reply)
+  scores.append((score_hits(hits),hits))
+  last_reply=clean["reply"]
+ observation={"at":now(),"scope":"historical_initial",**score_summary(scores)}
+ _atomic_json(SCORE_HISTORY,[observation]+history[-49:])
+ return observation
+
 def main():
  p=argparse.ArgumentParser()
  p.add_argument("--run",action="store_true")
  p.add_argument("--dry-run",action="store_true")
  p.add_argument("--summary",action="store_true")
+ p.add_argument("--baseline",action="store_true")
  args=p.parse_args()
- if sum((args.run,args.dry_run,args.summary))!=1:p.error("Choose exactly one mode")
+ if sum((args.run,args.dry_run,args.summary,args.baseline))!=1:p.error("Choose exactly one mode")
  if args.summary:
   info=_load(REPORT,{})
   print(json.dumps(info,ensure_ascii=False))
+  return 0
+ if args.baseline:
+  try:print(json.dumps(build_baseline(),ensure_ascii=False))
+  except (RuntimeError,ValueError,OSError):print("baseline_safe_failure");return 2
   return 0
  if args.run and os.environ.get("SOFTMOBILE_QUALITY_AUDIT_ENABLED")!="true":
   print("disabled: no calls or writes")
