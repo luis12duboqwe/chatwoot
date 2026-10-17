@@ -44,6 +44,8 @@ SAFE_TEMPLATES={
  "pickup_shipping_ambiguity":"¿Preferís retirarlo en Mall Galerías o recibirlo por envío a esa zona? Un asesor confirmará los detalles antes de coordinar."
 }
 LOCATIONS={"galerias","mall galerias","plaza numa","plaza criolla","choloma"}
+# Historical pilot case IDs backed by seven independent deterministic Ruby replays.
+HISTORICAL_REPLAY_CASES={134,137,143,146,169,175,179}
 UNSAFE=re.compile(
  r"\b(?:ya (?:te |lo |la )?(?:reserv[eé]|aparte|apart[eé])|te (?:lo |la )?reserv[eé]|"
  r"tu pago (?:est[aá] )?confirmado|tenemos (?:disponible|en stock)|"
@@ -115,7 +117,8 @@ raise 'pilot scope violation' unless c && c.account_id==2 && c.inbox_id==2
 scope=c.messages.where(message_type: :outgoing,private:false)
   .where("content_attributes::text LIKE ?",'%softmobile_source_message_id%')
   .where('id > ?', {last_bot_id}).reorder(id: :asc).limit({MAX_SCAN})
-pairs=scope.filter_map do |m|
+batch=scope.to_a
+pairs=batch.filter_map do |m|
   attrs=m.content_attributes
   attrs=JSON.parse(attrs) if attrs.is_a?(String)
   source=attrs.is_a?(Hash) ? attrs['softmobile_source_message_id'] : nil
@@ -127,7 +130,7 @@ pairs=scope.filter_map do |m|
     incoming:incoming.content.to_s[0,550],reply:m.content.to_s[0,550],
     previous:(older&.content.to_s || '')[0,260]}}
 end
-last=scope.reorder(id: :desc).first&.id || {last_bot_id}
+last=batch.last&.id || {last_bot_id}
 puts '{MARKER}'+{{last_bot_id:last,pairs:pairs}}.to_json
 """
  obj=rails_read(ruby)
@@ -234,6 +237,7 @@ def summarize(state,findings,stats):
           "llm_calls_today":state["api_calls"],"findings_total":len(findings),
           "pending_review":sum(x["status"]=="pending_human_review" for x in findings),
           "deployed_pending_live_test":sum(x["status"]=="fix_deployed_pending_live_test" for x in findings),
+          "regression_passed_pending_live_test":sum(x["status"]=="regression_passed_pending_live_test" for x in findings),
           "by_category":{},"latest_run":stats}
  for f in findings:summary["by_category"][f["category"]]=summary["by_category"].get(f["category"],0)+1
  return summary
@@ -242,7 +246,8 @@ def test_gate(runner=subprocess.run):
  """Run current Ruby bot suites in memory, without chat writes or deployments."""
  bot=Path("/opt/softmobile-waha-test/sales-bot-v2.rb")
  regression=DATA/"test_quality_flows.rb"
- if not bot.is_file() or not regression.is_file():
+ historical=DATA/"test_historical_replay.rb"
+ if not bot.is_file() or not regression.is_file() or not historical.is_file():
   return {"status":"missing_test_files"}
  source=bot.read_text(encoding="utf8")
  separator="\nif ENV['SM_MODE']=='test'\n"
@@ -253,7 +258,9 @@ def test_gate(runner=subprocess.run):
   (["docker","exec","-i","-e","SM_MODE=test","softmobile-chatwoot-rails-1","sh","-lc",
     "RAILS_ENV=production bundle exec rails runner -"],source,r"BOT_TEST_CASES=(\d+) PASS=(\d+) FAIL=0"),
   (base,source.split(separator)[0]+"\n"+regression.read_text(encoding="utf8"),
-   r"SOFTMOBILE_QA_REGRESSION=(\d+)/(\d+) PASS")
+   r"SOFTMOBILE_QA_REGRESSION=(\d+)/(\d+) PASS"),
+  (base,source.split(separator)[0]+"\n"+historical.read_text(encoding="utf8"),
+   r"HISTORICAL_REPLAY_TOTAL=(\d+) PASS=(\d+) FAIL=0")
  ]
  counts=[]
  for cmd,stdin,regex in cases:
@@ -265,7 +272,7 @@ def test_gate(runner=subprocess.run):
   if process.returncode!=0 or not match or match.group(1)!=match.group(2):
    return {"status":"test_failed"}
   counts.append(int(match.group(1)))
- return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1]}
+ return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2]}
 
 def notify_staff(last_bot_id,labels):
  """Single deduplicated private Chatwoot note; never sends customer messages."""
@@ -340,7 +347,14 @@ def run(dry=False,use_llm=False,run_tests=False,notify=False):
     findings.append(issue);keys.add(issue["id"]);stats["flagged_new"]+=1
     new_labels.append(label)
  if not dry:
-  if run_tests:stats["regression_gate"]=test_gate()
+  if run_tests:
+   stats["regression_gate"]=test_gate()
+   if stats["regression_gate"].get("status")=="passed" and stats["regression_gate"].get("historical_cases")==7:
+    for issue in findings:
+     if (issue.get("bot_message_id") in HISTORICAL_REPLAY_CASES and
+         issue.get("category")=="exact_repeat" and issue.get("status")=="pending_human_review"):
+      issue["status"]="regression_passed_pending_live_test"
+      issue["resolution_note"]="Simulación Ruby aprobada; falta repetir la secuencia real en WhatsApp."
   cutoff=(datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
   findings=[f for f in findings if str(f.get("detected_at",""))>=cutoff][-250:]
   state["scanned"]+=len(pairs)
