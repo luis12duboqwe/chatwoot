@@ -134,7 +134,7 @@ def discover(findings,pack):
  learned=[]
  for case in sorted(findings,key=lambda d:d.get("bot_message_id",0),reverse=True):
   if case.get("status") not in ("pending_human_review","fix_deployed_pending_live_test"):continue
-  if case.get("category")!="exact_repeat":continue
+  if case.get("category") not in ("exact_repeat","payment_choice_ignored"):continue
   msg=normalize(case.get("customer_sample",""))
   old=normalize(case.get("bot_sample",""))
   if msg not in ALLOWED_REPLIES or msg in seen:continue
@@ -266,7 +266,7 @@ def main():
     result.update(deploy(candidate))
     _atomic_json(PACK,next_pack)
     for finding in findings:
-     if normalize(finding.get("customer_sample",""))==rule["when"] and finding.get("category")=="exact_repeat":
+     if normalize(finding.get("customer_sample",""))==rule["when"] and finding.get("category") in ("exact_repeat","payment_choice_ignored"):
       finding["status"]="fix_deployed_pending_live_test"
       finding["resolution_note"]="Autofix de patrón acotado: requiere validación con conversación nueva."
     _atomic_json(FINDINGS,findings)
