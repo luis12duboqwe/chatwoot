@@ -24,10 +24,12 @@ ROOT=Path("/opt/softmobile-waha-test/laboratorio-ia")
 DATA=ROOT/"quality"
 HISTORY=DATA/"autofix-history.json"
 PACK=DATA/"auto-policy-rules.json"
+SYNTHETIC=DATA/"synthetic-lab-issues.json"
 REGRESSION=DATA/"test_quality_flows.rb"
 HISTORICAL=DATA/"test_historical_replay.rb"
 JOURNEYS=DATA/"test_full_customer_journeys.rb"
 LIVE_JOURNEY=DATA/"test_live_buyer_20261017.rb"
+SYNTHETIC_PAYMENT=DATA/"test_synthetic_payment_menu.rb"
 BACKUPS=Path("/opt/softmobile-waha-test/quality-backups")
 LOCK=DATA/"autofix.lock"
 TIMER="softmobile-waha-catalog-notes.timer"
@@ -62,7 +64,8 @@ DECLARATIONS=r'''  # SM_AUTO_POLICY_BEGIN
       next unless chosen==rule.fetch("when")
       next unless intent.to_s==rule.fetch("intent")
       gate=rule.fetch("previous_gate")
-      valid=gate=="checkout" && prev.match?(/(?:ser[ií]a para retirar|ser[ií]a con env[ií]o|tengo anotado|confirmar disponibilidad)/i)
+      valid=(gate=="checkout" && prev.match?(/(?:ser[ií]a para retirar|ser[ií]a con env[ií]o|tengo anotado|confirmar disponibilidad)/i)) ||
+            (gate=="payment_menu" && prev.match?(/efectivo.*transferencia.*tarjeta/i))
       next unless valid
       return {reply:rule.fetch("reply"),note:"AUTOMEJORA PILOTO: verificar modalidad y precio final con asesor.",needs_human:true,intent: :payments,tag:'sm_autofix'}
     end
@@ -83,7 +86,7 @@ def default_pack():
 def _safe_rule(rule):
  if not isinstance(rule,dict) or set(rule)!={"when","intent","previous_gate","reply"}:
   raise ValueError("Unexpected rule fields")
- if rule["when"] not in ALLOWED_REPLIES or rule["intent"]!="payments" or rule["previous_gate"]!="checkout":
+ if rule["when"] not in ALLOWED_REPLIES or rule["intent"]!="payments" or rule["previous_gate"] not in ("checkout","payment_menu"):
   raise ValueError("Unsupported or out-of-scope rule")
  if rule["reply"]!=ALLOWED_REPLIES[rule["when"]] or CONFIRM_SAFE.search(rule["reply"]):
   raise ValueError("Unsafe or unverified text")
@@ -97,8 +100,9 @@ def valid_pack(pack):
  seen=set()
  for rule in pack["rules"]:
   _safe_rule(rule)
-  if rule["when"] in seen:raise ValueError("Duplicate rule")
-  seen.add(rule["when"])
+  identity=(rule["when"],rule["previous_gate"])
+  if identity in seen:raise ValueError("Duplicate rule")
+  seen.add(identity)
  return pack
 
 def embedded_source(src,pack):
@@ -131,19 +135,49 @@ def embedded_source(src,pack):
  return src
 
 def discover(findings,pack):
- seen={r["when"] for r in pack["rules"]}
+ seen={(r["when"],r["previous_gate"]) for r in pack["rules"]}
  learned=[]
  for case in sorted(findings,key=lambda d:d.get("bot_message_id",0),reverse=True):
   if case.get("status") not in ("pending_human_review","fix_deployed_pending_live_test"):continue
   if case.get("category") not in ("exact_repeat","payment_choice_ignored"):continue
   msg=normalize(case.get("customer_sample",""))
   old=normalize(case.get("bot_sample",""))
-  if msg not in ALLOWED_REPLIES or msg in seen:continue
+  if msg not in ALLOWED_REPLIES or (msg,"checkout") in seen:continue
   if "seria para retirar" not in old and "seria con envio" not in old and "tengo anotado" not in old:
    continue
   learned.append({"when":msg,"intent":"payments","previous_gate":"checkout","reply":ALLOWED_REPLIES[msg]})
-  seen.add(msg)
+  seen.add((msg,"checkout"))
  return learned
+
+def discover_synthetic(issues,pack):
+ """Only a verified menu repetition may feed a finite, preapproved response rule.
+
+ Do not execute LLM-generated code or trust its proposed answer.
+ """
+ if not isinstance(issues,list):raise RuntimeError("Synthetic issues malformed")
+ known={(r["when"],r["previous_gate"]) for r in pack["rules"]}
+ candidates=[]
+ for item in issues:
+  if item.get("status")!="synthetic_unverified" or item.get("category")!="payments":
+   continue
+  if "payment_choice_repeat" not in item.get("static_flags",[]):
+   continue
+  trace=item.get("evidence",[])
+  if not isinstance(trace,list) or len(trace)<2:continue
+  prior,latest=trace[-2],trace[-1]
+  if not isinstance(prior,dict) or not isinstance(latest,dict):continue
+  msg=normalize(latest.get("buyer",""))
+  previous_reply=normalize(prior.get("bot",""))
+  current_reply=normalize(latest.get("bot",""))
+  if (msg not in ALLOWED_REPLIES or (msg,"payment_menu") in known or
+      not all(k in previous_reply for k in ("efectivo","transferencia","tarjeta")) or
+      not all(k in current_reply for k in ("efectivo","transferencia","tarjeta"))):
+   continue
+  new={"when":msg,"intent":"payments","previous_gate":"payment_menu","reply":ALLOWED_REPLIES[msg]}
+  _safe_rule(new)
+  candidates.append((new,item["id"]))
+  known.add((msg,"payment_menu"))
+ return candidates
 
 def cmd_run(cmd,stdin=None,timeout=70,env=None):
  return subprocess.run(cmd,input=stdin,text=True,capture_output=True,timeout=timeout,env=env)
@@ -168,6 +202,9 @@ def gates(candidate):
   (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
     "RAILS_ENV=production bundle exec rails runner -"],
     candidate.split(separator)[0]+"\n"+LIVE_JOURNEY.read_text(),r"SM_LIVE_JOURNEY_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
+    "RAILS_ENV=production bundle exec rails runner -"],
+    candidate.split(separator)[0]+"\n"+SYNTHETIC_PAYMENT.read_text(),r"SM_AUTOFIX_PAYMENT_MENU_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
  ]
  checks=[]
  for cmd,code,rx in suites:
@@ -177,7 +214,7 @@ def gates(candidate):
   if r.returncode!=0 or not m or m.group(1)!=m.group(2):
    return {"status":"regression_failed"}
   checks.append(int(m.group(1)))
- return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2],"customer_journeys":checks[3],"new_live_replays":checks[4]}
+ return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2],"customer_journeys":checks[3],"new_live_replays":checks[4],"autofix_payment_menu":checks[5]}
 
 def scenario_check(src,rule):
  sep="\nif ENV['SM_MODE']=='test'\n"
@@ -194,6 +231,10 @@ other=SoftMobileSales.plan('¿Ya pagué por transferencia?',ctx,inven,prev)
 raise 'security_bypass' if other[:tag]=='sm_autofix'
 puts 'AUTOFIX_SCENARIO_PASS'
 '''.replace("RULE_TRIGGER",rule["when"]).replace("EXPECTED_REPLY",rule["reply"])
+ if rule["previous_gate"]=="payment_menu":
+  test=test.replace(
+   "prev='Perfecto, sería para retirar. Tengo anotado el iPhone 15 Pro de 128GB, en negro, para Choloma. Primero hay que confirmar disponibilidad, precio y punto de retiro.'",
+   "prev='Podés pagar en efectivo, transferencia o tarjeta, según las condiciones del punto de entrega.'")
  r=cmd_run(["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
       "RAILS_ENV=production bundle exec rails runner -"],src.split(sep)[0]+"\n"+test)
  return r.returncode==0 and "AUTOFIX_SCENARIO_PASS" in r.stdout
@@ -255,13 +296,22 @@ def main():
    return 0
   current=valid_pack(_load(PACK,default_pack()))
   candidates=discover(findings,current)
-  if not candidates:
+  synthetic=_load(SYNTHETIC,[])
+  if not isinstance(synthetic,list):raise RuntimeError("Synthetic findings malformed")
+  pending_synthetic=discover_synthetic(synthetic,current)
+  origin="real_conversation"
+  issue_id=None
+  if candidates:
+   rule=candidates[0]
+  elif pending_synthetic:
+   rule,issue_id=pending_synthetic[0]
+   origin="synthetic_lab_bounded"
+  else:
    print("no_supported_new_rule")
    return 0
-  rule=candidates[0]
   next_pack={**current,"rules":current["rules"]+[rule]}
   candidate=embedded_source(LIVE.read_text(),next_pack)
-  result={"day":day,"scenario":rule["when"],"source_rule":"bounded_catalog",
+  result={"day":day,"scenario":rule["when"],"source_rule":origin,"gate_type":rule["previous_gate"],
           "time":datetime.now(timezone.utc).isoformat()}
   status=gates(candidate)
   result["gate"]=status
@@ -274,6 +324,12 @@ def main():
       finding["status"]="fix_deployed_pending_live_test"
       finding["resolution_note"]="Autofix de patrón acotado: requiere validación con conversación nueva."
     _atomic_json(FINDINGS,findings)
+    if issue_id:
+     for issue in synthetic:
+      if issue.get("id")==issue_id:
+       issue["status"]="fix_deployed_pending_synthetic_retest"
+       issue["resolution_note"]="Deterministic checkout-choice rule deployed; all existing Ruby suites passed. Retest required."
+     _atomic_json(SYNTHETIC,synthetic)
     st=_load(STATE,{})
     report=summarize(st,findings,{"autofix":result,"regression_gate":status})
     _atomic_json(REPORT,report)
