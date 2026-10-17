@@ -1,0 +1,11 @@
+[Unit]
+Description=Attempt validated auto-improvements after the hourly quality audit
+
+[Timer]
+OnCalendar=*-*-* *:20:00
+AccuracySec=30s
+Persistent=false
+Unit=softmobile-auto-improver.service
+
+[Install]
+WantedBy=timers.target
