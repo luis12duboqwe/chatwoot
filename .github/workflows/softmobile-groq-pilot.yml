@@ -1,0 +1,31 @@
+name: SoftMobile Groq Pilot (offline)
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/softmobile/ai/**'
+      - '.github/workflows/softmobile-groq-pilot.yml'
+  push:
+    paths:
+      - 'integrations/softmobile/ai/**'
+      - '.github/workflows/softmobile-groq-pilot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/softmobile/ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax check
+        run: python -m compileall -q groq_pilot.py test_groq_pilot.py
+      - name: Unit tests (without any keys or network)
+        run: python -m unittest -v test_groq_pilot
