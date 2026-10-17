@@ -1,0 +1,11 @@
+[Unit]
+Description=Read-only observation of pilot Chatwoot WAHA transport
+
+[Timer]
+OnCalendar=*:0/10
+AccuracySec=30s
+Persistent=false
+Unit=softmobile-pilot-transport.service
+
+[Install]
+WantedBy=timers.target
