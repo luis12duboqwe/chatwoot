@@ -77,6 +77,26 @@ class AutoImproverTests(unittest.TestCase):
   self.assertEqual(plan,[{"when":"tarjeta","intent":"payments","previous_gate":"checkout",
                           "reply":a.ALLOWED_REPLIES["tarjeta"]}])
   self.assertEqual(a.discover([dict(issue,customer_sample="Mi tarjeta es 41111111")],a.default_pack()),[])
+ def test_synthetic_payment_menu_is_bounded(self):
+  issue={"id":"synthetic-1","status":"synthetic_unverified",
+    "category":"payments","static_flags":["payment_choice_repeat"],
+    "evidence":[
+      {"buyer":"¿Cómo puedo pagar?","bot":"Podés pagar en efectivo, transferencia o tarjeta."},
+      {"buyer":"Transferencia","bot":"Podés pagar en efectivo, transferencia o tarjeta."}]}
+  rule={"when":"transferencia","intent":"payments","previous_gate":"payment_menu",
+        "reply":a.ALLOWED_REPLIES["transferencia"]}
+  self.assertEqual(a.discover_synthetic([issue],a.default_pack()),[(rule,"synthetic-1")])
+  self.assertEqual(a.discover_synthetic([issue],{"version":1,"pilot_conversation_id":3,"rules":[rule]}),[])
+  self.assertEqual(a.discover_synthetic([dict(issue,static_flags=[])],a.default_pack()),[])
+  self.assertEqual(a.discover_synthetic([dict(issue,category="financing")],a.default_pack()),[])
+  self.assertEqual(a.discover_synthetic([dict(issue,status="discarded_invalid_scenario")],a.default_pack()),[])
+ def test_synthetic_rule_cannot_override_commercial_reply(self):
+  rule={"when":"transferencia","intent":"payments","previous_gate":"payment_menu",
+        "reply":a.ALLOWED_REPLIES["transferencia"]}
+  a.valid_pack({"version":1,"pilot_conversation_id":3,"rules":[rule]})
+  with self.assertRaises(ValueError):
+   a.valid_pack({"version":1,"pilot_conversation_id":3,"rules":[
+    dict(rule,reply="Pago confirmado, enviá comprobante")]})
  def test_safety_pattern_always_checks_outputs(self):
   self.assertIsNotNone(a.CONFIRM_SAFE.search("precio final es L20000"))
   self.assertIsNotNone(a.CONFIRM_SAFE.search("te lo reservé"))
