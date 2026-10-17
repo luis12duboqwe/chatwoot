@@ -1,0 +1,11 @@
+[Unit]
+Description=Interactive fictional buyer test and quality review of SoftMobile pilot
+
+[Timer]
+OnCalendar=*-*-* *:15,45:00
+AccuracySec=1min
+Persistent=false
+Unit=softmobile-interactive-lab.service
+
+[Install]
+WantedBy=timers.target
