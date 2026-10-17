@@ -110,3 +110,56 @@ posterior devolvió `no_new_messages`. Las respuestas públicas continúan en el
 
 Importante: el análisis automático de calidad/aprendizaje continuo todavía es una etapa
 posterior. Este servicio es el puente de sugerencias internas, no un editor autónomo del bot.
+
+## Auditoría automática y propuestas de mejora (17 oct 2026)
+Archivos: `quality_auditor.py`, `test_quality_auditor.py`, y
+`quality_payment_delivery.patch` en `patches/`.
+
+### Ciclo implementado
+1. Leer respuestas públicas del bot con marca de origen, exclusivamente de Chatwoot
+   cuenta 2, bandeja 2, conversación 3, sin escribir ni enviar mensajes.
+2. Emparejar cada respuesta con el mensaje entrante exacto; conservar un cursor
+   para evaluar **solo las respuestas nuevas** en posteriores ejecuciones.
+3. Identificar repeticiones, elecciones de pago ignoradas, ambigüedad entre retiro
+   y envío, y afirmaciones comerciales no verificadas.
+4. Omitir mensajes con números, emails, direcciones y otros identificadores
+   detectados por los filtros locales. No enviar notas internas, nombres ni logs.
+5. Enviar como máximo 3 casos relevantes y anonimizados a Groq por ejecución
+   (límite del auditor: 12 consultas/día). La IA propone correcciones, pero no
+   controla escrituras a Chatwoot, códigos, precios, reservas ni pagos.
+6. Validar el formato y prohibiciones básicas de las propuestas; guardar
+   hallazgos en `quality/findings.json` (permisos 0600, directorio restringido).
+7. Crear borradores de casos de regresión con estado
+   `pending_human_review`, no autorizar automáticamente despliegues.
+8. Ejecutar revisión cada hora con `softmobile-quality-audit.timer`.
+   Rotación: máximo 250 hallazgos, con antigüedad máxima de 30 días.
+
+Las pruebas de Python no garantizan que un modelo nunca genere una mala propuesta.
+No debe habilitarse el aprendizaje autónomo sobre código de producción sin
+control de calidad, aprobación y capacidad de reversión.
+
+### Prueba de despliegue y corrección concreta
+- Se analizaron 33 respuestas reales del bot piloto y se identificaron
+  11 alertas candidatas (9 repeticiones, 1 pago, 1 ambigüedad de entrega).
+- Groq realizó tres valoraciones en la primera ejecución. Se conserva
+  un juicio humano obligatorio antes de aprobar cambios.
+- Se aplicaron manualmente, tras pruebas, dos correcciones delimitadas:
+  reconocer 'Efectivo' como elección y aclarar 'Galerías' tras solicitud de envío.
+- El motor Ruby superó 57/57 pruebas y 5/5 nuevas regresiones sobre la versión
+  candidata antes de desplegarse. Backup local en directorio restringido
+  `/opt/softmobile-waha-test/quality-backups`.
+- El sistema de IA **no** escribió ni desplegó código por sí mismo.
+- El fichero `quality/findings.json` contiene únicamente registros del piloto;
+  no debe subirse a GitHub ni adjuntarse a informes públicos.
+
+### Consultar estado sin repetir manualmente pruebas
+```bash
+python3 /opt/softmobile-waha-test/laboratorio-ia/quality_auditor.py --summary
+systemctl status softmobile-quality-audit.timer --no-pager
+journalctl -u softmobile-quality-audit.service -n 15 --no-pager
+```
+
+### Parar solamente la auditoría (bot y Groq piloto siguen funcionando)
+```bash
+sudo systemctl disable --now softmobile-quality-audit.timer
+```
