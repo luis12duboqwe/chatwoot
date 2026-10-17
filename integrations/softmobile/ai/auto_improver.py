@@ -30,6 +30,7 @@ HISTORICAL=DATA/"test_historical_replay.rb"
 JOURNEYS=DATA/"test_full_customer_journeys.rb"
 LIVE_JOURNEY=DATA/"test_live_buyer_20261017.rb"
 SYNTHETIC_PAYMENT=DATA/"test_synthetic_payment_menu.rb"
+FUTURE=DATA/"test_future_customer_scenarios.rb"
 BACKUPS=Path("/opt/softmobile-waha-test/quality-backups")
 LOCK=DATA/"autofix.lock"
 TIMER="softmobile-waha-catalog-notes.timer"
@@ -205,6 +206,9 @@ def gates(candidate):
   (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
     "RAILS_ENV=production bundle exec rails runner -"],
     candidate.split(separator)[0]+"\n"+SYNTHETIC_PAYMENT.read_text(),r"SM_AUTOFIX_PAYMENT_MENU_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
+    "RAILS_ENV=production bundle exec rails runner -"],
+    candidate.split(separator)[0]+"\n"+FUTURE.read_text(),r"SM_FUTURE_SCENARIOS_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
  ]
  checks=[]
  for cmd,code,rx in suites:
@@ -214,7 +218,7 @@ def gates(candidate):
   if r.returncode!=0 or not m or m.group(1)!=m.group(2):
    return {"status":"regression_failed"}
   checks.append(int(m.group(1)))
- return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2],"customer_journeys":checks[3],"new_live_replays":checks[4],"autofix_payment_menu":checks[5]}
+ return {"status":"passed","baseline":checks[0],"regressions":checks[1],"historical_replays":checks[2],"customer_journeys":checks[3],"new_live_replays":checks[4],"autofix_payment_menu":checks[5],"synthetic_future":checks[6]}
 
 def scenario_check(src,rule):
  sep="\nif ENV['SM_MODE']=='test'\n"
