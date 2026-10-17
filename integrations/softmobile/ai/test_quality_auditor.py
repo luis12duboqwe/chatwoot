@@ -103,6 +103,25 @@ class QualityTests(unittest.TestCase):
      self.assertEqual(judge.call_count,2)
      self.assertEqual(q._load(q.STATE,{})["api_calls"],2)
      self.assertEqual(len(q._load(q.FINDINGS,[])),2)
+ def test_read_pagination_does_not_skip_remaining_messages(self):
+  def fake_rails(script):
+   self.assertIn("batch=scope.to_a",script)
+   self.assertIn("last=batch.last&.id",script)
+   self.assertIn("limit(",script)
+   self.assertNotIn("scope.reorder(id: :desc).first",script)
+   return {"last_bot_id":64,"pairs":[]}
+  with patch.object(q,"rails_read",side_effect=fake_rails):
+   self.assertEqual(q.fetch_pairs(31)["last_bot_id"],64)
+
+ def test_historical_flags_wait_for_live_validation(self):
+  self.assertEqual(len(q.HISTORICAL_REPLAY_CASES),7)
+  self.assertEqual(q.HISTORICAL_REPLAY_CASES,{134,137,143,146,169,175,179})
+  summary=q.summarize(q.initial_state(),[
+    {"status":"regression_passed_pending_live_test","category":"exact_repeat"},
+    {"status":"pending_human_review","category":"unsafe_claim"}],{})
+  self.assertEqual(summary["regression_passed_pending_live_test"],1)
+  self.assertEqual(summary["pending_review"],1)
+
  def test_disabled_command_causes_no_state_change(self):
   with patch.dict(q.os.environ,{"SOFTMOBILE_QUALITY_AUDIT_ENABLED":"false"}):
    self.assertEqual(q.main.__name__,"main")
