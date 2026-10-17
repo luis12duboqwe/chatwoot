@@ -1,0 +1,60 @@
+--- sales bot before pilot customer replay fix
++++ sales bot after tested replay fix
+@@ -145,6 +145,8 @@
+ 
+     def color(s)
+       t = normalize(s)
++      # A buyer can name the titanium finish without knowing the exact shade.
++      return 'Titanio' if t.match?(/\b(titanio|titanium)\b/)
+       return 'Dorado' if t.match?(/\b(dorado|dorada|gold|oro)\b/)
+       return 'Negro' if t.match?(/\b(negro|negra|black|espacial)\b/)
+       return 'Morado' if t.match?(/\b(morado|morada|violeta|purple)\b/)
+@@ -160,6 +162,7 @@
+     def color_options(s)
+       t=normalize(s)
+       mapping={
++        'Titanio'=>/\b(titanio|titanium)\b/,
+         'Dorado'=>/\b(dorado|dorada|gold|oro)\b/,
+         'Negro'=>/\b(negro|negra|black|espacial)\b/,
+         'Morado'=>/\b(morado|morada|violeta|purple)\b/,
+@@ -656,6 +659,40 @@
+       ask_next=nil
+       response=nil
+ 
++      # A generic finish ("Titanium") is not a verified exact color.
++      # Ask for the shade before moving to delivery; do not promise its stock.
++      if intent_type==:other && device && cap && col=='Titanio' &&
++         t.match?(/\b(titanio|titanium)\b/) && !t.match?(/\b(dorado|negro|blanco|natural|desierto)\b/)
++        return {reply:"Anoté que buscás el #{device} de #{cap} en titanio. ¿Qué tono preferís: natural, negro, blanco o desierto? Un asesor confirmará qué colores tiene realmente disponibles.",
++          note:'TONO TITANIO NO DEFINIDO: validar color exacto del proveedor, no asumir existencia.',
++          needs_human:true,intent: :colors,tag:'aclarar_titanio'}
++      end
++      # The last bot turn asked for a delivery area. An address reference is
++      # usable context, NOT a fresh product question; never repeat the reference
++      # or promise courier coverage. Its original wording remains in Chatwoot.
++      if intent_type==:other && delivery_mode=='Envío' && device && cap && col && place &&
++         previous_bot.to_s.match?(/(?:en qu[eé] colonia|en qu[eé] zona|zona ser[ií]a|punto de referencia)/i) &&
++         t.match?(/\b(?:gasolinera|farmacia|parque|hospital|supermercado|barrio|colonia|residencial|centro comercial|frente a|cerca de|al lado de)\b/) &&
++         t.length<=125
++        return {reply:"Perfecto, anoté tu referencia para el envío a #{ctx[:home_city] || place}. Un asesor confirmará cobertura, costo, precio y disponibilidad antes de coordinar. ¿Preferís pagar en efectivo, transferencia o tarjeta?",
++          note:'REFERENCIA DE ENTREGA APORTADA: consultar texto original en Chatwoot; no asegurar cobertura, cobros ni disponibilidad.',
++          needs_human:true,intent: :delivery_reference,tag:'referencia_pendiente'}
++      end
++      # Simple affirmative after a completed handoff is not a fresh request.
++      # When the previous question offered payment methods, "sí" is ambiguous:
++      # clarify the method rather than duplicating the order summary.
++      if intent_type==:other && t.match?(/\A(?:si|claro|correcto|exacto|asi es)\z/) &&
++         delivery_mode && device && cap && col && place
++        if previous_bot.to_s.match?(/(?:pagar|efectivo|transferencia|tarjeta).*[?]/i)
++          return {reply:'¿Preferís pagar en efectivo, por transferencia o con tarjeta? Antes de coordinar, un asesor confirmará el precio y la disponibilidad.',
++            note:'RESPUESTA AFIRMATIVA AMBIGUA A PAGO: pedir modalidad, sin asumir método.',
++            needs_human:false,intent: :clarify_payment,tag:'aclarar_pago'}
++        end
++        if !previous_bot.to_s.include?('?')
++          return {reply:nil,note:'Cliente confirmó el resumen comercial. No repetir mensaje ni enviar un segundo cobro.',
++            needs_human:false,intent: :handoff_ack,tag:'silencio'}
++        end
++      end
+       # After a handoff, an 'ok/perfecto' is an acknowledgement, NOT
+       # a fresh quote. Prevent repetitive messages to buyers and agent spam.
+       if intent_type==:other &&
