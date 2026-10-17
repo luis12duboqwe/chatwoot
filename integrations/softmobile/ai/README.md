@@ -423,3 +423,51 @@ change. Unsupported findings remain open.
 
 The user-facing WhatsApp pilot remains restricted to account 2, inbox 2,
 conversation 3; no new phone messages are sent by this simulation lab.
+
+## Groq interactive step-by-step customer pilot — 2026-10-17
+
+Separate read-only automated lab added alongside the existing batch simulator.
+The interactive Groq actor now creates **one** fictional customer message,
+the deployed Ruby sales engine replies inside an isolated read-only Rails
+runner, and Groq receives that exact bot reply before composing its next
+customer message. The actor does not generate a whole dialogue upfront.
+
+- 3 to 5 turn customer dialogues; persona rotates across ten different
+  buyer concerns (device variants, shipping, payment, objection, financing,
+  trust, warranty, checkout and cancellation).
+- Every created customer message must pass the previous synthetic lab's
+  strict fake-data, anti-vendor-imitation and privacy filters.
+- A separate Groq call evaluates the completed dialogue with structured
+  output, records what was good/bad and may suggest a better customer reply.
+  The evaluation is explicitly advisory: suggestions that claim unverified
+  terms are discarded, but the diagnostic can still be retained.
+- The entire **fictional** transcript, AI evaluation and detected flags are
+  saved root-only under quality/interactive-lab-transcripts.json. Only
+  flagged cases enter the existing private synthetic-lab-issues.json queue.
+  Existing bounded autofix rules can consider permitted payment-intent
+  patterns, subject to mandatory tests/rollback; AI cannot execute code.
+- Shared lock and same **combined** local 160 Groq API requests/day quota as
+  the older batch scenario lab. The interactive session uses up to five
+  customer-generation requests and one independent judge request.
+- Additional systemd timer runs every half hour at :15 and :45 UTC;
+  original scripted synthetic lab remains at :05 and :35 UTC. Services
+  remain entirely scoped to Chatwoot account 2 / inbox 2 / conversation 3.
+  The new lab itself sends **zero** Chatwoot / WAHA / WhatsApp messages.
+- The first live Groq interactive test ran five turns and discovered a
+  previously missed ambiguity as the customer changed iPhone 15 capacity
+  and color several times. The independent Groq grader marked the
+  discrepancy as a potential intent/context error. It is recorded for
+  corroboration and **not deployed** as an arbitrary AI patch.
+- 103 offline Python tests passed after initial activation; the existing
+  Ruby conversation safety gates remain in place for any autofixer release.
+- CI now includes the interactive module and its regression/security tests.
+
+Read-only status:
+  cd /opt/softmobile-waha-test/laboratorio-ia
+  python3 interactive_lab.py --status
+
+To stop ONLY this stepwise simulation process:
+  systemctl disable --now softmobile-interactive-lab.timer
+
+No provider-free-plan quota or approval of actual customer messaging is
+guaranteed. The local cap protects the combined synthetic labs.
