@@ -51,7 +51,7 @@ def redact(value):
     """Basic minimization for development; not a complete PII de-identification tool."""
     text = str(value)
     text = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[correo]", text)
-    text = re.sub(r"\b(?:\+?504[\s-]?)?[2-9]\d{7}\b", "[telefono]", text)
+    text = re.sub(r"(?<!\d)(?:\+?504[\s-]?)?[2-9]\d{3}[\s-]?\d{4}(?!\d)", "[telefono]", text)
     text = re.sub(r"\b(?:\d[ -]?){13,19}\b", "[numero_sensible]", text)
     text = re.sub(r"https?://\S+", "[enlace]", text, flags=re.I)
     return text[:600]
