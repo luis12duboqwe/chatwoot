@@ -173,7 +173,11 @@ def detect(pair,prior_reply=""):
    hits.append("pickup_shipping_ambiguity")
  if UNSAFE.search(reply):
   hits.append("unsafe_claim")
- if prior_reply and len(reply)>55 and reply==normalize(prior_reply) and text not in {"hola","buenas"}:
+ # Repetition is not necessarily an error if the client repeats the same question
+ # or sends a conversational acknowledgment. Continue to flag distinct requests.
+ harmless_ack={"hola","buenas","ok","vale","gracias","muchas gracias","listo","perfecto","si","entendido"}
+ if (prior_reply and len(reply)>55 and reply==normalize(prior_reply)
+     and text not in harmless_ack and text!=previous):
   hits.append("exact_repeat")
  return hits
 
