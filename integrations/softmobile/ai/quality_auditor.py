@@ -247,7 +247,8 @@ def test_gate(runner=subprocess.run):
  bot=Path("/opt/softmobile-waha-test/sales-bot-v2.rb")
  regression=DATA/"test_quality_flows.rb"
  historical=DATA/"test_historical_replay.rb"
- if not bot.is_file() or not regression.is_file() or not historical.is_file():
+ journeys=DATA/"test_full_customer_journeys.rb"
+ if not bot.is_file() or not regression.is_file() or not historical.is_file() or not journeys.is_file():
   return {"status":"missing_test_files"}
  source=bot.read_text(encoding="utf8")
  separator="\nif ENV['SM_MODE']=='test'\n"
@@ -260,7 +261,9 @@ def test_gate(runner=subprocess.run):
   (base,source.split(separator)[0]+"\n"+regression.read_text(encoding="utf8"),
    r"SOFTMOBILE_QA_REGRESSION=(\d+)/(\d+) PASS"),
   (base,source.split(separator)[0]+"\n"+historical.read_text(encoding="utf8"),
-   r"HISTORICAL_REPLAY_TOTAL=(\d+) PASS=(\d+) FAIL=0")
+   r"HISTORICAL_REPLAY_TOTAL=(\d+) PASS=(\d+) FAIL=0"),
+  (base,source.split(separator)[0]+"\n"+journeys.read_text(encoding="utf8"),
+   r"SM_JOURNEYS_TOTAL=(\d+) PASS=(\d+) FAIL=0")
  ]
  counts=[]
  for cmd,stdin,regex in cases:
@@ -272,7 +275,7 @@ def test_gate(runner=subprocess.run):
   if process.returncode!=0 or not match or match.group(1)!=match.group(2):
    return {"status":"test_failed"}
   counts.append(int(match.group(1)))
- return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2]}
+ return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1],"historical_cases":counts[2],"customer_journeys":counts[3]}
 
 def notify_staff(last_bot_id,labels):
  """Single deduplicated private Chatwoot note; never sends customer messages."""
