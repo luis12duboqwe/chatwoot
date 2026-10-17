@@ -6,6 +6,29 @@ from pathlib import Path
 import auto_improver as a
 
 class AutoImproverTests(unittest.TestCase):
+ def source(self):
+  """Portable offline fixture. VPS separately tests the actual production Ruby."""
+  return (
+   "# frozen_string_literal: true\n"
+   "module SoftMobileSales\n"
+   "  INBOX_ID = 2\n"
+   "  PILOT_CONVERSATION_ID = 3\n"
+   "  AUTO_REPLY_LIMIT = 1\n"
+   "  class << self\n"
+   "    def plan(message, ctx, products, previous_bot=nil)\n"
+   "      raw=message.to_s\n"
+   "      intent_type=:payments\n"
+   "      if ambiguous_model_choice?(raw) && [:stock,:price,:other,:comparison].include?(intent_type)\n"
+   "        return nil\n"
+   "      end\n"
+   "    end\n"
+   "  end\n"
+   "end\n"
+   "if ENV['SM_MODE']=='test'\n"
+   "  exit\n"
+   "end\n"
+  )
+
  def setUp(self):
   self.rule={"when":"transferencias","intent":"payments",
              "previous_gate":"checkout","reply":a.ALLOWED_REPLIES["transferencias"]}
@@ -26,12 +49,12 @@ class AutoImproverTests(unittest.TestCase):
             dict(self.pack,rules=[self.rule,self.rule])):
    with self.assertRaises(ValueError):a.valid_pack(p)
  def test_source_gates_are_required(self):
-  source=a.LIVE.read_text()
+  source=self.source()
   self.assertIn("PILOT_CONVERSATION_ID = 3",source)
   changed=source.replace("PILOT_CONVERSATION_ID = 3","PILOT_CONVERSATION_ID = 5")
   with self.assertRaises(RuntimeError):a.embedded_source(changed,self.pack)
  def test_deterministic_source(self):
-  source=a.LIVE.read_text()
+  source=self.source()
   p=a.embedded_source(source,self.pack)
   self.assertEqual(p,a.embedded_source(p,self.pack))
   self.assertEqual(p.count(a.BEG),1)
@@ -55,11 +78,11 @@ class AutoImproverTests(unittest.TestCase):
   self.assertTrue(str(a.HISTORY).startswith(str(a.ROOT)))
   self.assertTrue(str(a.BACKUPS).startswith("/opt/softmobile-waha-test/"))
  def test_no_ai_code_imported(self):
-  p=a.embedded_source(a.LIVE.read_text(),self.pack)
+  p=a.embedded_source(self.source(),self.pack)
   self.assertNotIn("eval(",p[:500])
   self.assertNotIn("File.read(",p[:1200])
  def test_only_conversation_scope(self):
-  source=a.LIVE.read_text()
+  source=self.source()
   self.assertIn("PILOT_CONVERSATION_ID = 3",source)
   self.assertIn("AUTO_REPLY_LIMIT = 1",source)
 
