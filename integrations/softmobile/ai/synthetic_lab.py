@@ -222,6 +222,52 @@ def static_flags(simulation):
   if turn["bot"]:previous=turn["bot"]
  return flags
 
+def retest_open_issues(issues,key,state,max_cases=3):
+ """Re-run old synthetic findings after code changes and independently regrade.
+
+ An AI verdict alone never marks a fix as proven or authorizes deployment.
+ """
+ if not key:return {"checked":0,"improved_ai_only":0,"still_suspicious":0}
+ queued=[]
+ for item in issues:
+  if item.get("status") not in ("synthetic_unverified","fix_deployed_pending_synthetic_retest"):
+   continue
+  if item.get("last_retested_at"):
+   from datetime import timedelta
+   t=datetime.fromisoformat(item["last_retested_at"])
+   if datetime.now(timezone.utc)-t<timedelta(hours=6):continue
+  try:valid=validate_cases({"scenarios":[item["scenario"]]})[0]
+  except (ValueError,TypeError,KeyError):continue
+  if state.get("api_calls",0)>=MAX_DAILY:break
+  queued.append((item,valid))
+  if len(queued)>=max_cases:break
+ if not queued:return {"checked":0,"improved_ai_only":0,"still_suspicious":0}
+ dialogues=simulate([x[1] for x in queued])
+ stats={"checked":0,"improved_ai_only":0,"still_suspicious":0}
+ for (item,_),dialogue in zip(queued,dialogues):
+  if state["api_calls"]>=MAX_DAILY:break
+  reserve(state)
+  grade=None
+  try:
+   grade=validate_grade(api_json(key,JUDGE_SYSTEM,
+       json.dumps({"category":dialogue["category"],"dialogue":dialogue["turns"]},
+             ensure_ascii=False)[:6000],JUDGE_SCHEMA,"synth_grade"))
+  except (ValueError,RuntimeError):pass
+  original=item.get("evidence",[])
+  changed=sum(a.get("bot")!=b.get("bot") for a,b in zip(original,dialogue["turns"]))
+  static=static_flags(dialogue)
+  item["last_retested_at"]=utc_now()
+  item["retest"]={"changed_turns":changed,"deterministic_flags":static,
+      "ai_error":None if grade is None else grade["error"],
+      "ai_reason":"" if grade is None else grade["reason"][:200]}
+  stats["checked"]+=1
+  if changed>0 and not static and grade and not grade["error"]:
+   item["status"]="retested_ai_clear_pending_deterministic_review"
+   stats["improved_ai_only"]+=1
+  else:
+   stats["still_suspicious"]+=1
+ return stats
+
 def previous_state():
  return {"day":"","api_calls":0,"runs":0,"scenarios":0,"issues":0}
 
@@ -287,14 +333,15 @@ def run(use_ai):
    # Offline check does not mutate recurring-run state, except an operator
    # deliberately calls it for local diagnostics.
    return {"mode":"offline","simulated":len(simulated),"results":report}
-  state["runs"]+=1;state["scenarios"]+=len(simulated);state["issues"]=sum(x.get("status")=="synthetic_unverified" for x in issues)
+  retest=retest_open_issues(issues,key,state) if use_ai else {"checked":0,"improved_ai_only":0,"still_suspicious":0}
+  state["runs"]+=1;state["scenarios"]+=len(simulated);state["issues"]=sum(x.get("status") in ("synthetic_unverified","fix_deployed_pending_synthetic_retest") for x in issues)
   issues=issues[-MAX_ISSUES:]
   _atomic_json(ISSUES,issues)
   _atomic_json(STATE,state)
   summary={"at":utc_now(),"mode":source,"pilot_only":True,"simulated":len(simulated),
      "api_calls_today":state["api_calls"],"total_simulations":state["scenarios"],
      "unverified_issues_stored":state["issues"],"accepted_ai_scenarios":accepted,"discarded_invalid_scenarios":rejected,
-     "results":report,"public_messages_sent":0,"autonomous_code_changes":0}
+     "results":report,"regression_retest":retest,"public_messages_sent":0,"autonomous_code_changes":0}
   _atomic_json(SUMMARY,summary)
   return summary
 
