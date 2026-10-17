@@ -385,3 +385,41 @@ To inspect:
   journalctl -u softmobile-synthetic-lab.service -n 20 --no-pager
 To disable AI-generated synthetic testing only:
   sudo systemctl disable --now softmobile-synthetic-lab.timer
+
+## Autonomous audit-to-fix results — 17 October 2026
+
+Five synthetic customer dialogue defects were reproduced in the previous pilot
+Ruby bot, and five corresponding reply improvements were implemented in the
+isolated candidate after independent scenario testing. Groq had offered unsafe
+answers with unverified inventory, shipping estimates and refund promises;
+those text proposals were explicitly rejected.
+
+Safe fixed-response families installed:
+- Personalized cases/accessories: acknowledge inquiry, verify whether offered,
+  confirm price/compatibility with agent; no invented availability.
+- Color preference changes: do not misclassify as hardware repair; distinguish
+  preference from modifying an existing paid or shipped order.
+- Delivery lead times: explain that timings need route/provider verification.
+- Delivery damage: human escalation without automatic promises of refund,
+  replacement or waiver of applicable legal rights.
+- Sequential storage/color changes: acknowledge each update without repeating
+  identical city requests on every message; keep missing city as open context.
+
+Tests: 57 baseline Ruby tests + 5 commercial + 7 historical + 20 complete
+journeys + 11 live pilot replays + 2 synthetic payment + 15 additional
+future-scenario assertions = 117 checks, all passed pre-deployment and
+post-deployment. Local Python tests initially 89/89.
+Verified backup: sales-bot.autofix.20261017T230712Z.bak under quality-backups.
+The pilot commercial bot and autofix timers were successfully restarted.
+
+The synthetic lab now replays up to three previously unresolved fictional
+dialogues per cycle against the new live Ruby engine, submits them to Groq
+for an independent assessment, and compares new replies with stored earlier
+replies. Groq retest calls count toward the lab's local 160 daily requests cap.
+When a case has changed, no deterministic flags and AI reports no error, it
+is marked 'retested_ai_clear_pending_deterministic_review'. This provisional
+state is NOT proof of real customer quality and triggers no autonomous code
+change. Unsupported findings remain open.
+
+The user-facing WhatsApp pilot remains restricted to account 2, inbox 2,
+conversation 3; no new phone messages are sent by this simulation lab.
