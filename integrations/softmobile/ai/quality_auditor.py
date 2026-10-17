@@ -238,7 +238,36 @@ def summarize(state,findings,stats):
  for f in findings:summary["by_category"][f["category"]]=summary["by_category"].get(f["category"],0)+1
  return summary
 
-def run(dry=False,use_llm=False):
+def test_gate(runner=subprocess.run):
+ """Run current Ruby bot suites in memory, without chat writes or deployments."""
+ bot=Path("/opt/softmobile-waha-test/sales-bot-v2.rb")
+ regression=DATA/"test_quality_flows.rb"
+ if not bot.is_file() or not regression.is_file():
+  return {"status":"missing_test_files"}
+ source=bot.read_text(encoding="utf8")
+ separator="\nif ENV['SM_MODE']=='test'\n"
+ if separator not in source:return {"status":"invalid_bot_test_entry"}
+ base=["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
+       "RAILS_ENV=production bundle exec rails runner -"]
+ cases=[
+  (["docker","exec","-i","-e","SM_MODE=test","softmobile-chatwoot-rails-1","sh","-lc",
+    "RAILS_ENV=production bundle exec rails runner -"],source,r"BOT_TEST_CASES=(\d+) PASS=(\d+) FAIL=0"),
+  (base,source.split(separator)[0]+"\n"+regression.read_text(encoding="utf8"),
+   r"SOFTMOBILE_QA_REGRESSION=(\d+)/(\d+) PASS")
+ ]
+ counts=[]
+ for cmd,stdin,regex in cases:
+  try:
+   process=runner(cmd,input=stdin,text=True,capture_output=True,timeout=65,check=False)
+  except (OSError,subprocess.TimeoutExpired):
+   return {"status":"test_unavailable"}
+  match=re.search(regex,process.stdout)
+  if process.returncode!=0 or not match or match.group(1)!=match.group(2):
+   return {"status":"test_failed"}
+  counts.append(int(match.group(1)))
+ return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1]}
+
+def run(dry=False,use_llm=False,run_tests=False):
  state=_load(STATE,initial_state())
  if state.get("conversation_id")!=3 or type(state.get("last_bot_id")) is not int:
   raise RuntimeError("Invalid audit state")
@@ -274,6 +303,7 @@ def run(dry=False,use_llm=False):
    if issue["id"] not in keys:
     findings.append(issue);keys.add(issue["id"]);stats["flagged_new"]+=1
  if not dry:
+  if run_tests:stats["regression_gate"]=test_gate()
   cutoff=(datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
   findings=[f for f in findings if str(f.get("detected_at",""))>=cutoff][-250:]
   state["scanned"]+=len(pairs)
@@ -298,7 +328,7 @@ def main():
   print("disabled: no calls or writes")
   return 2
  try:
-  info=run(dry=args.dry_run,use_llm=args.run and os.environ.get("SOFTMOBILE_QUALITY_AUDIT_LLM_ENABLED")=="true")
+  info=run(dry=args.dry_run,use_llm=args.run and os.environ.get("SOFTMOBILE_QUALITY_AUDIT_LLM_ENABLED")=="true",run_tests=args.run)
   print(json.dumps(info,ensure_ascii=False))
  except (RuntimeError,ValueError,OSError) as ex:
   print("audit_safe_failure:"+type(ex).__name__)
