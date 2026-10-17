@@ -101,6 +101,26 @@ class AutoImproverTests(unittest.TestCase):
   self.assertIsNotNone(a.CONFIRM_SAFE.search("precio final es L20000"))
   self.assertIsNotNone(a.CONFIRM_SAFE.search("te lo reservé"))
   self.assertIsNone(a.CONFIRM_SAFE.search(self.rule["reply"]))
+ def test_atomic_rollback_on_unexpected_post_deploy_exception(self):
+  import tempfile
+  import subprocess
+  with tempfile.TemporaryDirectory() as folder:
+   path=Path(folder)/"live.rb"
+   path.write_text("old_safe_source")
+   backups=Path(folder)/"backups"
+   called=[]
+   def fake_process(argv,**kwargs):
+    called.append(argv)
+    stdout="inactive" if "is-active" in argv else ""
+    return subprocess.CompletedProcess(argv,0,stdout=stdout)
+   with patch.object(a,"LIVE",path),patch.object(a,"BACKUPS",backups),\
+        patch.object(a.subprocess,"run",side_effect=fake_process),\
+        patch.object(a,"gates",side_effect=RuntimeError("unexpected_test_crash")):
+    with self.assertRaises(RuntimeError):
+     a.deploy("new_candidate")
+   self.assertEqual(path.read_text(),"old_safe_source")
+   self.assertTrue(any("start" in call for call in called))
+
  def test_daily_cap_and_state_paths(self):
   self.assertEqual(a.DAILY_CAP,2)
   self.assertTrue(str(a.HISTORY).startswith(str(a.ROOT)))
