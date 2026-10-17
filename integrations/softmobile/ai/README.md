@@ -471,3 +471,63 @@ To stop ONLY this stepwise simulation process:
 
 No provider-free-plan quota or approval of actual customer messaging is
 guaranteed. The local cap protects the combined synthetic labs.
+
+## AI-selected, staged and regression-gated pilot code-repair loop (2026-10-17)
+
+The first repair generator is now implemented as repair_lab.py, with eight
+systemd timers including softmobile-repair-lab.timer scheduled hourly at :55 UTC.
+The new service *only* sees fictional synthetic_lab / interactive_lab findings;
+no customer messages, secrets, account details, addresses or payments enter
+the repair generator.
+
+Pipeline:
+1. Search unresolved fictional dialogues for one of two pre-reviewed behavior
+   families (advisor_response_eta, shipping_tracking_followup).
+2. Require an independent Groq structured-JSON selection of the issue type.
+   No source code, arbitrary expressions, regular expressions, or executable
+   suggestions from Groq are accepted.
+3. Compile trusted fixed Ruby policy into a private staged candidate file
+   (0600); no live bot code is changed at this step.
+4. Replay the triggering 3-6-message customer journey against both actual
+   pilot code and staged candidate. Reject if the targeted reply is unchanged,
+   does not address the question, contains fabricated facts, lacks required
+   human escalation, or introduces new deterministic regression flags.
+5. Run the *entire* 117-case Ruby suite with the staged code. Only on all
+   gates passing may repair_lab.py --run install the allowlisted candidate.
+6. Atomically back up and replace only the pilot bot; rerun full Ruby suites
+   after replacing it. Unexpected post-install exceptions also trigger atomic
+   restoration of the previous source. Preserve existing timers.
+7. Store private metadata + versioned source patch. Mark original synthetic
+   issue 'fix_deployed_pending_synthetic_retest'; no production signoff until
+   it passes a fresh test.
+
+First real full cycle: selected advisor_eta from interactive trial
+de90d42caef83f2141, staged it, verified candidate and replays, deployed it
+with backup sales-bot.autofix.20261017T234314Z.bak and confirmed the modified
+actual pilot handles an advisor response-time inquiry. No invented hour, stock
+or payment; no WhatsApp messages were sent. 113 Python tests pass, including
+an intentional gate exception testing atomic rollback. The 117 Ruby tests all
+passed in pre-/post-deploy gates.
+
+Controls:
+- At most ONE AI-directed code repair deployed per UTC day, and only in the
+  existing pilot account 2 / inbox 2 / conversation 3.
+- The repair service shares exclusive locks with the existing safe auto-improver
+  and both simulation labs. Contending on a lock skips that run safely.
+- Both existing labs and repair selection share the local 160 API
+  requests/day budget. Provider limits and free credits still apply.
+- Only TWO authorized fix classes exist at this point. The system does *not*
+  program itself arbitrarily, merge PRs or modify price, delivery, warranty,
+  product stock, payments, external accounts, or inventory.
+- New unsupported errors continue to be recorded for expanding the authorized
+  correction catalog and verifying future fixes.
+
+Inspection:
+  python3 repair_lab.py --status
+  journalctl -u softmobile-repair-lab.service -n 15 --no-pager
+
+Disabling *just* the code-repair scheduler:
+  systemctl disable --now softmobile-repair-lab.timer
+
+PR remains a draft pending independent review, CI status and real handset
+WhatsApp receive/send verification.
