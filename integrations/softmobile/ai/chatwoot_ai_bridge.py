@@ -67,6 +67,9 @@ puts '{PREFIX}' + {{id:last_id}}.to_json
 def safe_text(raw):
     if not isinstance(raw, str) or not 4 <= len(raw) <= 600 or PERSONAL.search(raw):
         return None
+    # Never forward customer-specific delivery landmarks or address hints to Groq.
+    if re.search(r"\b(?:gasolinera|farmacia|parque|supermercado|hospital|frente a|cerca de|calle|avenida|colonia|residencial)\b",raw,re.I):
+        return None
     # Short acknowledgments are not useful for an isolated AI suggestion.
     if raw.strip().casefold().strip(" .!?¿¡").lower() in {
         "hola", "buenas", "ok", "okay", "listo", "sí", "si", "gracias",
