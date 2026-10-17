@@ -75,6 +75,7 @@ class TestGroqPilot(unittest.TestCase):
             self.assertEqual(req.full_url, pilot.ENDPOINT)
             self.assertEqual(timeout, 12)
             self.assertEqual(req.get_header("Authorization"), "Bearer mock-test-key")
+            self.assertEqual(req.get_header("User-agent"), "SoftMobile-AI-Pilot/1.0")
             body = json.loads(req.data)
             self.assertEqual(body["messages"][0]["role"], "system")
             return Reply(json.dumps(result).encode())
@@ -96,6 +97,32 @@ class TestGroqPilot(unittest.TestCase):
             out = pilot.validate(dict(self.answer), pilot.prepare(
                 {"conversation_id": 3, "message": message}))
             self.assertTrue(out["human_review"], message)
+
+    def test_latest_explicit_variant_must_override_stale_context(self):
+        clean = pilot.prepare({
+            "conversation_id": 3,
+            "message": "Mejor el S22 Ultra morado de 256 GB, paso por él a Choloma",
+            "context": {"model": "Samsung S22 Ultra", "storage_gb": 128,
+                        "color_options": ["negro"], "pickup_location": "Choloma"}
+        })
+        with self.assertRaises(pilot.PilotError):
+            pilot.validate(dict(self.answer, storage_gb=128, color_options=["negro"]), clean)
+        with self.assertRaises(pilot.PilotError):
+            pilot.validate(dict(self.answer, storage_gb=256, color_options=["negro"]), clean)
+        good = pilot.validate(dict(self.answer, storage_gb=256, color_options=["morado"]), clean)
+        self.assertEqual(good["storage_gb"], 256)
+        self.assertEqual(good["color_options"], ["morado"])
+
+    def test_ai_cannot_self_authorize_reservation(self):
+        clean = pilot.prepare({
+            "conversation_id": 3,
+            "message": "Ya sé el modelo y pasaré por Choloma",
+            "context": {"model": "Samsung S22 Ultra"}
+        })
+        risky = dict(self.answer, suggested_reply="¿Querés que te reserve el equipo?",
+                     human_review=False)
+        result = pilot.validate(risky, clean)
+        self.assertTrue(result["human_review"])
 
     def test_cli_dry_run_requires_no_api_key(self):
         result = subprocess.run([sys.executable, pilot.__file__],
