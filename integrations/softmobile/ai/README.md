@@ -208,3 +208,19 @@ Para suspender automejoras sin detener el bot:
 ```bash
 sudo systemctl disable --now softmobile-auto-improver.timer
 ```
+
+## Validación de conversaciones históricas y corrección de cursor (17 oct 2026)
+- Incorporadas 7 conversaciones simuladas a `quality/test_historical_replay.rb`,
+  tomadas de las fallas históricas detectadas en el piloto. Cubren:
+  Villanueva, confirmación de retiro («Pasaré por él», «Retirarlo», «Paso»),
+  petición «No entiendo» y pregunta de precio después de una derivación.
+- Tanto `quality_auditor.test_gate()` como `auto_improver.gates()`
+  ejecutan ahora las 57 pruebas originales, 5 de regresión comercial
+  y **7 reproducciones históricas**; si alguna falla, el autoparche no se instala.
+- El auditor corrigió el cursor de paginación: procesa hasta 60 respuestas
+  por lote y guarda el ID de la última del lote, sin saltarse las posteriores.
+- Las 7 alertas históricas fueron reclasificadas como
+  `regression_passed_pending_live_test`, y las otras 4 como
+  `fix_deployed_pending_live_test`. **Ninguna es evidencia de prueba real
+  por WhatsApp**, la verificación final requiere una conversación nueva.
+- 56 pruebas Python locales superadas tras estas mejoras.
