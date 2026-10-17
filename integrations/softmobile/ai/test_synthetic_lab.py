@@ -127,6 +127,42 @@ end
     {"buyer":"Transferencia","bot":"Podés pagar en efectivo, transferencia o tarjeta, según las condiciones del punto de entrega."}
   ]}
   self.assertIn("payment_choice_repeat",lab.static_flags(simulation))
+ def test_retest_replays_and_regrades_without_deploying(self):
+  issue={"id":"candidate-1","status":"fix_deployed_pending_synthetic_retest",
+   "category":"questions","scenario":self.scenarios[0],
+   "evidence":[{"bot":"Antes: repetir pregunta de color"}]}
+  grade={"error":False,"severity":"low","category":"no_issue",
+         "reason":"La consulta ahora se interpreta correctamente",
+         "suggested_reply":"","expected_behavior":""}
+  replay={"category":"questions","turns":[
+    {"buyer":m,"bot":"Ahora: respuesta adecuada","intent":"other","human":False}
+    for m in self.scenarios[0]["messages"]]}
+  state=lab.previous_state()
+  with tempfile.TemporaryDirectory() as temp:
+   with patch.object(lab,"STATE",Path(temp)/"state.json"),\
+        patch.object(lab,"simulate",return_value=[replay]),\
+        patch.object(lab,"api_json",return_value=grade) as ai:
+    result=lab.retest_open_issues([issue],"mock",state,max_cases=1)
+    self.assertEqual(result,{"checked":1,"improved_ai_only":1,"still_suspicious":0})
+    self.assertEqual(issue["status"],"retested_ai_clear_pending_deterministic_review")
+    self.assertEqual(issue["retest"]["changed_turns"],1)
+    self.assertEqual(state["api_calls"],1)
+    ai.assert_called_once()
+ def test_retest_cannot_mark_new_issue_clear_from_bad_or_missing_grade(self):
+  issue={"id":"candidate-2","status":"synthetic_unverified","category":"changes",
+   "scenario":self.scenarios[0],"evidence":[{"bot":"old reply"}]}
+  replay={"category":"changes","turns":[
+    {"buyer":m,"bot":"new reply","intent":"other","human":False}
+    for m in self.scenarios[0]["messages"]]}
+  state=lab.previous_state()
+  with tempfile.TemporaryDirectory() as temp:
+   with patch.object(lab,"STATE",Path(temp)/"state.json"),\
+        patch.object(lab,"simulate",return_value=[replay]),\
+        patch.object(lab,"api_json",side_effect=RuntimeError("unavailable")):
+    result=lab.retest_open_issues([issue],"mock",state,max_cases=1)
+    self.assertEqual(result["still_suspicious"],1)
+    self.assertEqual(issue["status"],"synthetic_unverified")
+    self.assertIsNone(issue["retest"]["ai_error"])
  def test_no_user_contact_needed(self):
   self.assertEqual(lab.BOT.name,"sales-bot-v2.rb")
   self.assertIn("quality",str(lab.ISSUES))
