@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly safe staged code-repair evaluation and conditional pilot deployment
+
+[Timer]
+OnCalendar=*-*-* *:55:00
+AccuracySec=1min
+Persistent=false
+Unit=softmobile-repair-lab.service
+
+[Install]
+WantedBy=timers.target
