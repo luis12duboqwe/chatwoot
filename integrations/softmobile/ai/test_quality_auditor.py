@@ -21,6 +21,25 @@ class QualityTests(unittest.TestCase):
   self.assertEqual(q.detect(q.sanitize_pair(self.cash)),["payment_choice_repeat"])
  def test_location_ambiguity_detected(self):
   self.assertEqual(q.detect(q.sanitize_pair(self.place)),["pickup_shipping_ambiguity"])
+ def test_ignored_payment_choice_detected(self):
+  pair=dict(self.cash,incoming="Transferencias",
+            reply="Perfecto, sería para retirar. Tengo anotado el Samsung S22 Ultra en Choloma.")
+  self.assertIn("payment_choice_ignored",q.detect(q.sanitize_pair(pair)))
+  pair2=dict(pair,incoming="tarjeta")
+  self.assertIn("payment_choice_ignored",q.detect(q.sanitize_pair(pair2)))
+  good=dict(pair,reply="Entendido, preferís pagar por transferencia. Un asesor confirmará precio.")
+  self.assertNotIn("payment_choice_ignored",q.detect(q.sanitize_pair(good)))
+ def test_variant_corrections_flagged_only_if_old_variant_retained(self):
+  c=dict(self.cash,incoming="Mejor morado",
+         reply="Tengo anotado el Samsung S22 Ultra negro. ¿Retiro o envío?")
+  self.assertIn("color_change_ignored",q.detect(q.sanitize_pair(c)))
+  self.assertNotIn("color_change_ignored",q.detect(q.sanitize_pair(
+    dict(c,reply="Anoté color morado, confirmamos stock."))))
+  s=dict(self.cash,incoming="Mejor de 256 GB",
+         reply="Tengo anotado el Samsung S22 Ultra 128 GB. ¿Retiro o envío?")
+  self.assertIn("capacity_change_ignored",q.detect(q.sanitize_pair(s)))
+  self.assertNotIn("capacity_change_ignored",q.detect(q.sanitize_pair(
+    dict(s,reply="Buscás el de 256 GB, verificaremos."))))
  def test_good_disambiguation_not_flagged(self):
   p=dict(self.place,reply="¿Querés retirarlo en Mall Galerías o preferís envío a esa zona?")
   self.assertNotIn("pickup_shipping_ambiguity",q.detect(q.sanitize_pair(p)))
@@ -75,6 +94,29 @@ class QualityTests(unittest.TestCase):
    return Reply(json.dumps({"choices":[{"message":{"content":json.dumps(response)}}]}).encode())
   out=q.judge(q.sanitize_pair(self.cash),"test",opener=opener)
   self.assertEqual(out,response)
+ def test_quality_signal_reproducible_and_no_customer_content(self):
+  self.assertEqual(q.score_hits([]),100)
+  self.assertEqual(q.score_hits(["payment_choice_ignored"]),65)
+  self.assertEqual(q.score_hits(["unsafe_claim","exact_repeat"]),15)
+  scores=q.score_summary([(100,[]),(65,["payment_choice_ignored"]),(75,["pickup_shipping_ambiguity"])])
+  self.assertEqual(scores,{"evaluated":3,"heuristic_score":80.0,"flagged":2})
+  self.assertIsNone(q.score_summary([])["heuristic_score"])
+  self.assertNotIn("customer",str(scores).lower())
+
+ def test_history_baseline_is_idempotent_and_contains_no_customer_text(self):
+  with tempfile.TemporaryDirectory() as directory:
+   path=Path(directory)/"quality-score-history.json"
+   with patch.object(q,"SCORE_HISTORY",path),patch.object(q,"fetch_pairs",
+        return_value={"last_bot_id":210,"pairs":[self.cash,self.place]}) as fetch:
+    a=q.build_baseline()
+    b=q.build_baseline()
+    self.assertEqual(a,b)
+    self.assertEqual(fetch.call_count,1)
+    self.assertEqual(a["evaluated"],2)
+    self.assertNotIn("Efectivo",path.read_text())
+    self.assertNotIn("Galerías",path.read_text())
+    self.assertEqual(path.stat().st_mode&0o777,0o600)
+
  def test_state_permissions_and_atomic_write(self):
   with tempfile.TemporaryDirectory() as directory:
    file=Path(directory)/"state.json"
