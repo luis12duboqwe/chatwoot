@@ -40,6 +40,44 @@ class QualityTests(unittest.TestCase):
   self.assertIn("capacity_change_ignored",q.detect(q.sanitize_pair(s)))
   self.assertNotIn("capacity_change_ignored",q.detect(q.sanitize_pair(
     dict(s,reply="Buscás el de 256 GB, verificaremos."))))
+ def test_delivery_area_prompt_keeps_a_safe_generic_question(self):
+  record={"bot_id":236,"inbound_id":234,"incoming":"Envío",
+          "reply":"Consultamos envío a Comayagua y confirmamos transporte, costo y plazo antes de cerrar. ¿En qué colonia o zona sería?",
+          "previous":"Comayagua"}
+  parsed=q.sanitize_pair(record)
+  self.assertIsNotNone(parsed)
+  self.assertEqual(parsed["reply"],"¿En qué colonia o zona sería?")
+  landmark=q.sanitize_pair({"bot_id":239,"inbound_id":237,"incoming":"Gasolinera de ejemplo",
+          "reply":"Tengo anotado el iPhone 16 Pro de 256GB, con envío. Precio por verificar.",
+          "previous":"Envío"})
+  self.assertIn("shipping_reference_ignored",q.detect(landmark,parsed["reply"]))
+ def test_precise_landmarks_are_redacted_before_external_review(self):
+  safe=q.safe_line("Gasolinera de ejemplo")
+  self.assertEqual(safe,"gasolinera [referencia omitida]")
+  self.assertNotIn("uno",safe)
+  self.assertIn("shipping_reference_ignored",q.detect({
+    "incoming":safe,"reply":"Tengo anotado el equipo, con envío, precio por verificar.",
+    "previous":"Envío"},"¿En qué colonia o zona sería?"))
+ def test_live_pilot_detects_three_reproducible_failures(self):
+  titanium={"bot_id":227,"inbound_id":225,"incoming":"Color titanium",
+   "reply":"Dale, revisamos el iPhone 16 Pro de 256GB. ¿Qué color preferís?",
+   "previous":"De 256"}
+  reference={"bot_id":239,"inbound_id":237,"incoming":"Gasolinera de ejemplo",
+   "reply":"Tengo anotado el iPhone 16 Pro de 256GB, en dorado, con envío. Precio y existencia todavía deben verificarse con un asesor.",
+   "previous":"Envío"}
+  ack={"bot_id":242,"inbound_id":240,"incoming":"Si",
+   "reply":"Tengo anotado el iPhone 16 Pro de 256GB, en dorado, con envío. Precio y existencia todavía deben verificarse con un asesor.",
+   "previous":"Gasolinera de ejemplo"}
+  self.assertIn("finish_color_not_understood",q.detect(titanium,"¿Qué color preferís?"))
+  self.assertIn("shipping_reference_ignored",q.detect(reference,"Consultamos envío a Comayagua. ¿En qué colonia o zona sería?"))
+  self.assertIn("affirmation_repeated_summary",q.detect(ack,reference["reply"]))
+  fixed_titanium=dict(titanium,reply="Anoté titanio, ¿qué tono preferís?")
+  fixed_reference=dict(reference,reply="Anoté tu referencia de entrega para Comayagua; ¿cómo preferís pagar?")
+  fixed_ack=dict(ack,reply="¿Preferís efectivo, transferencia o tarjeta?")
+  self.assertNotIn("finish_color_not_understood",q.detect(fixed_titanium,"¿Qué color preferís?"))
+  self.assertNotIn("shipping_reference_ignored",q.detect(fixed_reference,"¿En qué colonia o zona sería?"))
+  self.assertNotIn("affirmation_repeated_summary",q.detect(fixed_ack,reference["reply"]))
+
  def test_good_disambiguation_not_flagged(self):
   p=dict(self.place,reply="¿Querés retirarlo en Mall Galerías o preferís envío a esa zona?")
   self.assertNotIn("pickup_shipping_ambiguity",q.detect(q.sanitize_pair(p)))
