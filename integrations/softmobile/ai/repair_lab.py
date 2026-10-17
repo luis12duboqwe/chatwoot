@@ -260,7 +260,12 @@ def main():
   res=run(allow_deploy=args.run)
   print(json.dumps(res,ensure_ascii=False))
   return 0
- except (RuntimeError,ValueError,TypeError,OSError,BlockingIOError) as exc:
+ except BlockingIOError:
+  # A concurrent synthetic/interactive grader may hold the shared lab lock.
+  # Skip this scheduled cycle without reporting a broken service.
+  print("repair_lab_skipped_other_lab_running")
+  return 0
+ except (RuntimeError,ValueError,TypeError,OSError) as exc:
   print("repair_lab_safe_failure:"+type(exc).__name__)
   return 2
 
