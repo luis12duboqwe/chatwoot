@@ -1,0 +1,28 @@
+--- sales-bot-v2.rb before quality review
++++ sales-bot-v2.rb after validated fixes
+@@ -647,6 +647,14 @@
+       # Checkout is an ACTION only after the buyer confirms delivery.
+       # A later price, stock, payment, warranty or clarification question MUST
+       # bypass the checkout handoff and get its own relevant answer.
++      # A landmark named after an earlier shipping request may mean a pickup
++      # point or a delivery area. Ask once instead of assuming shipping.
++      if intent_type==:other && delivery_mode=='Envío' &&
++         pickup_point(raw) && t.match?(/\A(?:galerias|mall galerias|plaza numa|plaza criolla)\z/)
++        return {reply:"¿Preferís retirarlo en #{pickup_point(raw)} o recibir envío cerca de ahí? Un asesor confirmará precio y disponibilidad antes de coordinar.",
++          note:'DESTINO AMBIGUO: aclarar retiro en punto aliado o envío antes de coordinar.',
++          needs_human:true,intent: :clarify_delivery,tag:'aclarar_entrega'}
++      end
+       if intent_type==:other && delivery_mode &&
+          (delivery_choice(raw) || city(raw) || pickup_point(raw)) &&
+          device && cap && preferred_colors.any? && place
+@@ -781,7 +789,9 @@
+         end
+         human_note="FINANCIAMIENTO: #{selected_bank || 'banco no indicado'}, #{term ? term[1]+' meses' : 'plazo no indicado'}. Confirmar elegibilidad, aprobación, tasa, cuota y requisitos."
+       when :payments
+-        if t.match?(/\b(contra entrega|pago al recibir)\b/)
++        if t.match?(/\A(?:efectivo|en efectivo|pago en efectivo)\z/)
++          response="Perfecto, anoté pago en efectivo#{device ? ' para el '+device : ''}. Un asesor confirmará precio final y disponibilidad antes de coordinar el cobro."
++        elsif t.match?(/\b(contra entrega|pago al recibir)\b/)
+           response='Podemos revisar la modalidad de pago según el punto de entrega. ¿En qué ciudad estás?'
+         else
+           response='Podés pagar en efectivo, transferencia o tarjeta, según las condiciones del punto de entrega. Antes de pagar te confirmamos el precio y los datos oficiales de cobro; no enviés claves bancarias por aquí.'
