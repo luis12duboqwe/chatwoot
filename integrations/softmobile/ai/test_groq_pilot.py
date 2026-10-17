@@ -47,6 +47,7 @@ class TestGroqPilot(unittest.TestCase):
                          "tarjeta 4111111111111111; https://example.com/x")
         self.assertNotIn("prueba@", s)
         self.assertNotIn("4111111111111111", s)
+        self.assertNotIn("9999-1234", s)
         self.assertNotIn("https://", s)
 
     def test_structured_schema(self):
