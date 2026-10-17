@@ -163,3 +163,48 @@ journalctl -u softmobile-quality-audit.service -n 15 --no-pager
 ```bash
 sudo systemctl disable --now softmobile-quality-audit.timer
 ```
+
+## Mejora automática CONTROLADA en la fase piloto (17 oct 2026)
+`auto_improver.py` se ejecuta cada hora a los :20, después del auditor de calidad
+que corre a los :00. El mecanismo no es simplemente una alerta; aprende reglas
+preaprobadas de fallos detectados por la auditoría, ejecuta pruebas de Ruby
+y las incorpora automáticamente al bot que atiende **solo la conversación #3**.
+
+### Recorrido sin intervención humana para errores soportados
+1. El auditor marca fallos repetidos y los pone en `quality/findings.json`.
+2. El mejorador local lee esos hallazgos y propone una **regla de una lista finita
+   de patrones permitidos**. Nunca ejecuta código proporcionado por Groq o clientes.
+3. Genera un cambio de datos con condiciones exactas (frase, intención, contexto).
+4. Verifica 57 pruebas originales y 5 regresiones de la atención comercial,
+   más escenarios particulares de la nueva regla. Si falla, **no despliega**.
+5. Si pasa, pausa el temporizador del bot, espera que el servicio termine, hace
+   una copia local de su código, lo reemplaza atómicamente y vuelve a probar.
+   Si la prueba posterior falla, revierte a la copia anterior.
+6. Actualiza el paquete de reglas activas y el registro de auditoría; reanuda bot.
+7. Limita automáticamente a 2 despliegues de automejoras por día, hasta 8 reglas
+   activas permitidas en esta primera fase. Los defectos no cubiertos por la
+   lista continúan registrados pero NO se corrigen solos.
+
+### Resultado real
+- El sistema tomó un caso de respuesta incorrecta a `Transferencias`, lo convirtió
+  automáticamente en una regla para reconocer la elección de pago, y la instaló en
+  el piloto tras pasar 57 pruebas del motor, 5 regresiones y una simulación de
+  interacción específica. Copia segura en `quality-backups/`.
+- Los temporizadores activos siguen: bot comercial, notas Groq, auditor por hora,
+  y mejorador por hora a los :20.
+- La clave Groq sigue fuera de GitHub. Ni los mensajes privados, el historial
+  detallado de clientes ni `quality/findings.json` se suben al repositorio.
+- Los cambios se versionan en GitHub mediante PR de desarrollo. El proceso local
+  autónomo **todavía no publica commits futuros a GitHub por sí mismo**.
+
+### Ver resultados y reversiones
+```bash
+python3 /opt/softmobile-waha-test/laboratorio-ia/auto_improver.py --status
+systemctl list-timers softmobile-auto-improver.timer --no-pager
+journalctl -u softmobile-auto-improver.service -n 25 --no-pager
+```
+
+Para suspender automejoras sin detener el bot:
+```bash
+sudo systemctl disable --now softmobile-auto-improver.timer
+```
