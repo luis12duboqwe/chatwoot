@@ -267,7 +267,42 @@ def test_gate(runner=subprocess.run):
   counts.append(int(match.group(1)))
  return {"status":"passed","engine_cases":counts[0],"quality_cases":counts[1]}
 
-def run(dry=False,use_llm=False,run_tests=False):
+def notify_staff(last_bot_id,labels):
+ """Single deduplicated private Chatwoot note; never sends customer messages."""
+ if type(last_bot_id) is not int or last_bot_id<=0:
+  raise ValueError("Invalid bot marker")
+ counts={}
+ for label in labels:
+  if label not in CONCERNS:raise ValueError("Unknown label")
+  counts[label]=counts.get(label,0)+1
+ if not counts:return "none"
+ text="Auditoría SoftMobile (solo piloto): "+", ".join(
+   str(count)+" "+label for label,count in sorted(counts.items()))
+ text+=". Casos por revisar en el informe local de calidad; no aplicar cambios sin pruebas."
+ marker="SMQA-"+str(last_bot_id)
+ import base64
+ body=base64.b64encode(("[SMQA:"+marker+"] "+text).encode("utf8")).decode("ascii")
+ ruby=f"""require 'json'
+require 'base64'
+c=Conversation.find_by(id:3)
+raise 'out_of_scope' unless c && c.account_id==2 && c.inbox_id==2
+raise 'missing_bot_source' unless c.messages.where(id:{last_bot_id},message_type: :outgoing,private:false).exists?
+message=Base64.strict_decode64('{body}')
+existing=c.messages.where(private:true).where('content LIKE ?',"%[SMQA:{marker}]%")
+if existing.exists?
+  puts '{MARKER}'+{{status:'duplicate',private:true}}.to_json
+else
+  Messages::MessageBuilder.new(nil,c,{{content:message,private:true}}).perform
+  raise 'note_not_private' unless existing.exists?
+  puts '{MARKER}'+{{status:'created',private:true}}.to_json
+end
+"""
+ response=rails_read(ruby)
+ if not response.get("private") or response.get("status") not in ("created","duplicate"):
+  raise RuntimeError("Private audit notification failed")
+ return response["status"]
+
+def run(dry=False,use_llm=False,run_tests=False,notify=False):
  state=_load(STATE,initial_state())
  if state.get("conversation_id")!=3 or type(state.get("last_bot_id")) is not int:
   raise RuntimeError("Invalid audit state")
@@ -278,6 +313,7 @@ def run(dry=False,use_llm=False,run_tests=False):
  result=fetch_pairs(state["last_bot_id"])
  pairs=result["pairs"];stats={"examined":len(pairs),"flagged_new":0,"api_used":0,"skipped_private":0}
  keys={i["id"] for i in findings}
+ new_labels=[]
  last_reply=""
  candidates=[]
  for raw in pairs:
@@ -302,6 +338,7 @@ def run(dry=False,use_llm=False,run_tests=False):
    issue=report_issue(clean,label,proposal)
    if issue["id"] not in keys:
     findings.append(issue);keys.add(issue["id"]);stats["flagged_new"]+=1
+    new_labels.append(label)
  if not dry:
   if run_tests:stats["regression_gate"]=test_gate()
   cutoff=(datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
@@ -310,6 +347,9 @@ def run(dry=False,use_llm=False,run_tests=False):
   state["last_bot_id"]=max(state["last_bot_id"],int(result["last_bot_id"]))
   _atomic_json(FINDINGS,findings)
   _atomic_json(STATE,state)
+  if notify and new_labels and (len(new_labels)>=3 or any(CONCERNS[l][0]=="high" for l in new_labels)):
+   try: stats["private_notice"]=notify_staff(int(result["last_bot_id"]),new_labels)
+   except (RuntimeError,ValueError):stats["private_notice"]="failed_safely"
   _atomic_json(REPORT,summarize(state,findings,stats))
  return summarize(state,findings,stats)
 
@@ -328,7 +368,7 @@ def main():
   print("disabled: no calls or writes")
   return 2
  try:
-  info=run(dry=args.dry_run,use_llm=args.run and os.environ.get("SOFTMOBILE_QUALITY_AUDIT_LLM_ENABLED")=="true",run_tests=args.run)
+  info=run(dry=args.dry_run,use_llm=args.run and os.environ.get("SOFTMOBILE_QUALITY_AUDIT_LLM_ENABLED")=="true",run_tests=args.run,notify=args.run)
   print(json.dumps(info,ensure_ascii=False))
  except (RuntimeError,ValueError,OSError) as ex:
   print("audit_safe_failure:"+type(ex).__name__)
