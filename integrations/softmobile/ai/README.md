@@ -837,3 +837,22 @@ Pendiente: ampliar la muestra independiente de conversaciones comerciales,
 verificar la entrega real del canal piloto, conectar el inventario con
 control de existencias y demostrar una mejora medible antes de habilitar
 autorespuestas en producción.
+
+### Additional quality gate — repeated buyer questions (18 Oct 2026 UTC)
+
+The private Groq suggestion guard now accepts the sanitized message and
+allowlisted context through `guarded_draft(output,clean)`, and rejects
+asking again for a model, color or capacity the buyer already provided.
+When it rejects such a draft, it produces a private, human-review-required
+fallback that does not ask the same question again. The fallback never
+states that a model, color or shipping route is available.
+
+This applies only to the agent's INTERNAL private Chatwoot note, not
+outgoing WhatsApp replies. No change to live Ruby bot or its send policy.
+
+New offline tests cover duplicate model, GB and color prompts and legitimate
+pickup/delivery follow-ups. **175/175 Python tests** pass on VPS.
+Re-executed seven synthetic Groq API prompts with the final code: **7/7**
+structured responses met preference and handoff requirements; two claims
+were blocked. This is a small synthetic sample, not a success rate in
+commercial production. Private aggregate results only were persisted.
