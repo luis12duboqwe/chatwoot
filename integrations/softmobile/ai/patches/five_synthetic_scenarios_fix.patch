@@ -1,0 +1,59 @@
+--- SoftMobile pilot before five Groq scenarios
++++ SoftMobile pilot after five verified scenarios
+@@ -653,6 +653,56 @@
+           note:'CAPACIDADES ALTERNATIVAS: cliente no ha elegido una variante; no cotizar una automáticamente.',
+           needs_human:true,intent: :clarify_storage,tag:'aclarar_variante'}
+       end
++      # GENERATED-SCENARIO-HARDENING: These literal, scoped responses are
++      # independent of any text proposed by the generative evaluator. Every
++      # scenario below requires a specific explicit customer intent.
++      if t.match?(/\b(?:funda|forro|estuche)\b/) && t.match?(/\b(?:diseno personalizado|personalizada|personalizado|personalizar|ponerle diseno)\b/)
++        return {reply:"Una funda personalizada no está confirmada como opción ni como regalo. Un asesor verificará si se puede conseguir y cuánto costaría. ¿Qué diseño buscás?",
++          note:'ACCESORIO PERSONALIZADO: verificar oferta, proveedor, costo y compatibilidad. No prometer personalización.',
++          needs_human:true,intent: :custom_accessory,tag:'personalizacion_por_confirmar'}
++      end
++      # Buyer can change a preference without requesting a physical repair.
++      if t.match?(/\b(?:cambiar|cambio|modificar|modifico|quisiera cambiar)\b.*\b(?:color)\b/) &&
++         col && t.match?(/\b(?:negro|blanco|plata|morado|dorado|azul|verde|rojo|titanio|titanium)\b/) &&
++         !t.match?(/\b(?:pantalla|bateria|tecnico|reparacion|fallas|falla)\b/)
++        if t.match?(/\b(?:mi pedido|mi compra|reserva|aparte|apartado|ya pague|ya lo enviaron)\b/)
++          return {reply:"Puedo solicitar el cambio de color a #{col.downcase}, pero un asesor debe verificar el estado del pedido y si se permite modificarlo. ¿Ya realizaste el pago?",
++            note:'CAMBIO COLOR DE PEDIDO EXISTENTE: verificar estado, pago y variante disponible. No prometer cambios.',
++            needs_human:true,intent: :order_change,tag:'modificar_pedido_por_verificar'}
++        end
++        return {reply:"Entendido, preferís el #{device || 'equipo'} en #{col.downcase}. No significa que esté disponible; antes de confirmar el cambio necesitamos verificar la variante. #{cap ? 'Un asesor revisará esa versión.' : '¿De cuántos GB lo buscás?'}",
++          note:'CORRECCIÓN DE COLOR: registrar preferencia, consultar existencias; no clasificar automáticamente como reparación.',
++          needs_human:true,intent: :colors,tag:'correccion_color'}
++      end
++      if t.match?(/\b(?:tiempo de entrega|plazo de entrega|cuanto tarda|cuantos dias(?: tarda)?|fecha estimada de entrega|cuando (?:llega|me llega))\b/) &&
++         !t.match?(/\b(?:mi pedido|mi paquete|mi envio|guia|rastreo|tracking)\b/)
++        return {reply:"El plazo de entrega todavía no está verificado. Debemos confirmar destino, disponibilidad y transporte antes de dar una fecha. ¿A qué ciudad sería el envío?",
++          note:'PLAZO DE ENTREGA: confirmar origen/destino, existencia, transportista y plazo real; no inventar días.',
++          needs_human:true,intent: :shipping_eta,tag:'plazo_por_confirmar'}
++      end
++      if t.match?(/\b(?:llega|llegara|recibo|recibiera|recibiese)\b.*\b(?:danado|roto|golpeado|quebrado|defectuoso|malo)\b/) ||
++         t.match?(/\b(?:producto|equipo|celular)\b.*\b(?:llega|recibo)\b.*\b(?:dano|danado|roto)\b/)
++        return {reply:"Si el equipo llega dañado, informanos de inmediato para que un asesor revise el caso, las condiciones de entrega y la garantía aplicable. ¿Ya lo recibiste o consultás antes de comprar?",
++          note:'POSIBLE DAÑO EN ENTREGA: atender con asesor, revisar evidencia/garantía/derechos; no prometer reembolso ni reemplazo.',
++          needs_human:true,intent: :damage_claim,tag:'danos_por_revisar'}
++      end
++      if t.match?(/\b(?:puedo cambiarlo|lo puedo cambiar)\b.*\b(?:antes|envie|despachen|enviarlo)\b/) &&
++         !t.match?(/\b(?:reparar|bateria|pantalla)\b/)
++        return {reply:"El cambio antes del envío depende del estado del pedido y de la unidad. Un asesor debe confirmarlo antes de darte una respuesta. ¿Ya pagaste o solamente estás consultando?",
++          note:'CAMBIO ANTES DE DESPACHO: revisar estado y pago con personal; no asumir modificación aprobada.',
++          needs_human:true,intent: :order_change,tag:'cambio_antes_envio'}
++      end
++      # Buyer is changing specifications but hasn't supplied a city yet. Avoid
++      # endlessly repeating the same question without acknowledging the change.
++      if device && !place && previous_bot.to_s.match?(/(?:en qu[eé] ciudad lo necesit[aá]s|falta saber la ciudad|ciudad donde lo necesit[aá]s)/i) &&
++         t.match?(/\b(?:mejor de \d{2,3}|mejor en color|y en color|prefiero en color)\b/) &&
++         (cap || col)
++        updated=[device,cap ? "de #{cap}" : nil,col ? "en #{col.downcase}" : nil].compact.join(' ')
++        return {reply:"Listo, actualicé tu preferencia al #{updated}. Para continuar con la cotización todavía falta saber la ciudad donde lo necesitás.",
++          note:'VARIANTE ACTUALIZADA: el cliente sigue sin indicar ciudad. Evitar repetir textualmente la misma pregunta.',
++          needs_human:false,intent: :variant_update,tag:'continuidad_variante'}
++      end
++
+       # The reference ERP does not supply verified stock or prices for the
+       # ally. Conversational routing must work with ERP DOWN.
+       label= 'Consulta: ' + [device,cap,col,place].compact.join(' | ')

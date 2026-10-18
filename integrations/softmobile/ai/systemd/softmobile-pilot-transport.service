@@ -1,0 +1,14 @@
+[Unit]
+Description=SoftMobile Chatwoot WAHA read-only pilot transport observation
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/pilot_transport_monitor.py --run
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=100

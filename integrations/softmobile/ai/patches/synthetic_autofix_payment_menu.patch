@@ -1,0 +1,21 @@
+--- Ruby pilot before synthetic learning
++++ Ruby pilot after bounded payment-menu improvement
+@@ -15,7 +15,7 @@
+   AUTO_REPLY_LIMIT = 1 # one public response per customer message
+ 
+   # SM_AUTO_POLICY_BEGIN
+-  SM_AUTO_POLICY_PACK = JSON.parse(Base64.strict_decode64("W3sid2hlbiI6InRyYW5zZmVyZW5jaWFzIiwiaW50ZW50IjoicGF5bWVudHMiLCJwcmV2aW91c19nYXRlIjoiY2hlY2tvdXQiLCJyZXBseSI6IkVudGVuZGlkbywgcHJlZmVyw61zIHBhZ2FyIHBvciB0cmFuc2ZlcmVuY2lhLiBVbiBhc2Vzb3IgY29uZmlybWFyw6EgcHJlY2lvIHkgZGlzcG9uaWJpbGlkYWQgeSBsdWVnbyB0ZSBkYXLDoSBsb3MgZGF0b3Mgb2ZpY2lhbGVzIGRlIGNvYnJvLiJ9XQ==")).freeze
++  SM_AUTO_POLICY_PACK = JSON.parse(Base64.strict_decode64("W3sid2hlbiI6InRyYW5zZmVyZW5jaWFzIiwiaW50ZW50IjoicGF5bWVudHMiLCJwcmV2aW91c19nYXRlIjoiY2hlY2tvdXQiLCJyZXBseSI6IkVudGVuZGlkbywgcHJlZmVyw61zIHBhZ2FyIHBvciB0cmFuc2ZlcmVuY2lhLiBVbiBhc2Vzb3IgY29uZmlybWFyw6EgcHJlY2lvIHkgZGlzcG9uaWJpbGlkYWQgeSBsdWVnbyB0ZSBkYXLDoSBsb3MgZGF0b3Mgb2ZpY2lhbGVzIGRlIGNvYnJvLiJ9LHsid2hlbiI6InRyYW5zZmVyZW5jaWEiLCJpbnRlbnQiOiJwYXltZW50cyIsInByZXZpb3VzX2dhdGUiOiJwYXltZW50X21lbnUiLCJyZXBseSI6IkVudGVuZGlkbywgcHJlZmVyw61zIHBhZ2FyIHBvciB0cmFuc2ZlcmVuY2lhLiBVbiBhc2Vzb3IgY29uZmlybWFyw6EgcHJlY2lvIHkgZGlzcG9uaWJpbGlkYWQgeSBsdWVnbyB0ZSBkYXLDoSBsb3MgZGF0b3Mgb2ZpY2lhbGVzIGRlIGNvYnJvLiJ9XQ==")).freeze
+   # SM_AUTO_POLICY_END
+ 
+   # Sandboxed business rule pack: literal normalized text + fixed context gate.
+@@ -28,7 +28,8 @@
+       next unless chosen==rule.fetch("when")
+       next unless intent.to_s==rule.fetch("intent")
+       gate=rule.fetch("previous_gate")
+-      valid=gate=="checkout" && prev.match?(/(?:ser[ií]a para retirar|ser[ií]a con env[ií]o|tengo anotado|confirmar disponibilidad)/i)
++      valid=(gate=="checkout" && prev.match?(/(?:ser[ií]a para retirar|ser[ií]a con env[ií]o|tengo anotado|confirmar disponibilidad)/i)) ||
++            (gate=="payment_menu" && prev.match?(/efectivo.*transferencia.*tarjeta/i))
+       next unless valid
+       return {reply:rule.fetch("reply"),note:"AUTOMEJORA PILOTO: verificar modalidad y precio final con asesor.",needs_human:true,intent: :payments,tag:'sm_autofix'}
+     end

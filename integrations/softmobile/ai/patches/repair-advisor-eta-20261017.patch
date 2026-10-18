@@ -1,0 +1,17 @@
+--- SoftMobile bot before autonomous bounded repair
++++ SoftMobile bot after advisor ETA improvement
+@@ -642,6 +642,14 @@
+         return sm_policy
+       end
+       # SM_AUTO_POLICY_HOOK_END
++      # SM_REPAIR_LAB_SAFE_RULES_BEGIN
++      if t.match?(/\b(?:cuanto|que)\s+(?:tiempo\s+)?(?:tardara|tarda|demora|tardaria)\b.{0,70}\b(?:asesor|respuesta|confirmacion|respondan|contest[ea]n)\b/) ||
++         t.match?(/\b(?:cuanto tiempo|cuando)\b.{0,55}\b(?:asesor|daran respuesta|me contestan|me confirman)\b/)
++        return {reply:"Todavía no tengo un plazo confirmado para que un asesor responda. El equipo debe revisar tu consulta; si no está la variante que buscás, también podemos consultar alternativas. ¿Querés que revisemos otras opciones?",
++                note:'TIEMPO DE RESPUESTA: un asesor debe verificar plazo y alternativas. No prometer horas ni tiempos de contacto.',
++                needs_human:true,intent: :advisor_eta,tag:'plazo_asesor_pendiente'}
++      end
++      # SM_REPAIR_LAB_SAFE_RULES_END
+ 
+       if ambiguous_model_choice?(raw) && [:stock,:price,:other,:comparison].include?(intent_type)
+         return {reply:'Te ayudo con los dos. ¿Cuál modelo querés que revisemos primero?',

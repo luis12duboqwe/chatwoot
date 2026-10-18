@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "pilot_conversation_id": 3,
+  "rules": [
+    {
+      "when": "transferencias",
+      "intent": "payments",
+      "previous_gate": "checkout",
+      "reply": "Entendido, preferís pagar por transferencia. Un asesor confirmará precio y disponibilidad y luego te dará los datos oficiales de cobro."
+    },
+    {
+      "when": "transferencia",
+      "intent": "payments",
+      "previous_gate": "payment_menu",
+      "reply": "Entendido, preferís pagar por transferencia. Un asesor confirmará precio y disponibilidad y luego te dará los datos oficiales de cobro."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=SoftMobile Groq pilot - internal Chatwoot suggestions only
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/softmobile/groq.env
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+Environment=SOFTMOBILE_AI_ENABLED=true
+Environment=SOFTMOBILE_CHATWOOT_AI_NOTES_ENABLED=true
+Environment=SOFTMOBILE_AI_MODEL=openai/gpt-oss-20b
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/chatwoot_ai_bridge.py --once
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=150

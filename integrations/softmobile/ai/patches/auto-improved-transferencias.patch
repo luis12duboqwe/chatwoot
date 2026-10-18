@@ -1,0 +1,44 @@
+--- pre-autofix pilot
++++ autofix pilot
+@@ -14,6 +14,27 @@
+   BOT_VERSION = 'sm_natural_v2'
+   AUTO_REPLY_LIMIT = 1 # one public response per customer message
+ 
++  # SM_AUTO_POLICY_BEGIN
++  SM_AUTO_POLICY_PACK = JSON.parse(Base64.strict_decode64("W3sid2hlbiI6InRyYW5zZmVyZW5jaWFzIiwiaW50ZW50IjoicGF5bWVudHMiLCJwcmV2aW91c19nYXRlIjoiY2hlY2tvdXQiLCJyZXBseSI6IkVudGVuZGlkbywgcHJlZmVyw61zIHBhZ2FyIHBvciB0cmFuc2ZlcmVuY2lhLiBVbiBhc2Vzb3IgY29uZmlybWFyw6EgcHJlY2lvIHkgZGlzcG9uaWJpbGlkYWQgeSBsdWVnbyB0ZSBkYXLDoSBsb3MgZGF0b3Mgb2ZpY2lhbGVzIGRlIGNvYnJvLiJ9XQ==")).freeze
++  # SM_AUTO_POLICY_END
++
++  # Sandboxed business rule pack: literal normalized text + fixed context gate.
++  # No Ruby or regex from AI or from untrusted conversation data is evaluated.
++  def self.sm_auto_policy(raw,intent,previous_bot)
++    return nil unless [:payments].include?(intent)
++    chosen=normalize(raw)
++    prev=previous_bot.to_s
++    SM_AUTO_POLICY_PACK.each do |rule|
++      next unless chosen==rule.fetch("when")
++      next unless intent.to_s==rule.fetch("intent")
++      gate=rule.fetch("previous_gate")
++      valid=gate=="checkout" && prev.match?(/(?:ser[ií]a para retirar|ser[ií]a con env[ií]o|tengo anotado|confirmar disponibilidad)/i)
++      next unless valid
++      return {reply:rule.fetch("reply"),note:"AUTOMEJORA PILOTO: verificar modalidad y precio final con asesor.",needs_human:true,intent: :payments,tag:'sm_autofix'}
++    end
++    nil
++  end
++
+   class << self
+     def normalize(s)
+       s.to_s.unicode_normalize(:nfkd).gsub(/\p{Mn}/, '').downcase
+@@ -611,6 +632,13 @@
+       colors_phrase=preferred_colors.join(' o ')
+       delivery_mode=ctx[:delivery_mode]
+       selected_bank=ctx[:bank]
++      # SM_AUTO_POLICY_HOOK_BEGIN
++      # Only a narrow, safely-tested improvement for an exact follow-up.
++      if (sm_policy=SoftMobileSales.sm_auto_policy(raw,intent_type,previous_bot))
++        return sm_policy
++      end
++      # SM_AUTO_POLICY_HOOK_END
++
+       if ambiguous_model_choice?(raw) && [:stock,:price,:other,:comparison].include?(intent_type)
+         return {reply:'Te ayudo con los dos. ¿Cuál modelo querés que revisemos primero?',
+           note:'MÚLTIPLES MODELOS: no confirmar SKU, precio ni inventario hasta que el cliente elija uno.',

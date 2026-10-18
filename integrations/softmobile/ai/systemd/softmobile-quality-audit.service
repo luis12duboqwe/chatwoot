@@ -1,0 +1,18 @@
+[Unit]
+Description=SoftMobile quality audit - pilot only, proposals without autonomous deployment
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/softmobile/groq.env
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+Environment=SOFTMOBILE_QUALITY_AUDIT_ENABLED=true
+Environment=SOFTMOBILE_QUALITY_AUDIT_LLM_ENABLED=true
+Environment=SOFTMOBILE_AI_MODEL=openai/gpt-oss-20b
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/quality_auditor.py --run
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=180

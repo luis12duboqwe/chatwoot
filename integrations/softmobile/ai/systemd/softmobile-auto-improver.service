@@ -1,0 +1,16 @@
+[Unit]
+Description=SoftMobile bounded automatic fixes (piloto #3 only)
+After=network-online.target docker.service
+Wants=network-online.target
+ConditionPathExists=/opt/softmobile-waha-test/laboratorio-ia/quality/findings.json
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+Environment=SOFTMOBILE_AUTOFIX_ENABLED=true
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/auto_improver.py --run
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=180

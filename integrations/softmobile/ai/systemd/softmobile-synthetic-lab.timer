@@ -1,0 +1,11 @@
+[Unit]
+Description=Groq generated buyer journeys and autonomous quality evaluations
+
+[Timer]
+OnCalendar=*-*-* *:05,35:00
+AccuracySec=1min
+Persistent=false
+Unit=softmobile-synthetic-lab.service
+
+[Install]
+WantedBy=timers.target

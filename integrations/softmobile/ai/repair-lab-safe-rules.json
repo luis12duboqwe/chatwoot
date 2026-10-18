@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "pilot_conversation_id": 3,
+  "families": [
+    "advisor_eta",
+    "optional_coverage"
+  ]
+}

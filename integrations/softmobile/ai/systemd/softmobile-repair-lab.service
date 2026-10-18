@@ -1,0 +1,17 @@
+[Unit]
+Description=SoftMobile autonomous bounded AI-selected code repair (pilot only)
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/softmobile/groq.env
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/softmobile-waha-test/laboratorio-ia
+Environment=SOFTMOBILE_REPAIR_LAB_DEPLOY=true
+Environment=SOFTMOBILE_AI_MODEL=openai/gpt-oss-20b
+ExecStart=/usr/bin/python3 /opt/softmobile-waha-test/laboratorio-ia/repair_lab.py --run
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=300
