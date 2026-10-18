@@ -72,6 +72,19 @@ class VariantPreferenceTests(unittest.TestCase):
        "human_review":False,
        "suggested_reply":"¿Querés comparar ambos modelos primero?"}
   self.assertTrue(pilot.validate(ans,clean)["human_review"])
+ def test_pickup_and_inspection_always_need_human_review(self):
+  for question in ("¿Lo puedo retirar en Choloma?",
+                   "¿Puedo probarlo antes de pagar?",
+                   "¿Cuándo recibo mi equipo?",
+                   "¿Tienen entrega a San Pedro Sula?"):
+   with self.subTest(question=question):
+    clean=pilot.prepare({"conversation_id":3,"message":question,
+      "context":{"model":"iPhone 15 Pro","storage_gb":"256","color_options":"azul"}})
+    draft={"intent":"consulta","model":"iPhone 15 Pro","storage_gb":256,
+      "color_options":["azul"],"city":None,"pickup_location":None,
+      "human_review":False,
+      "suggested_reply":"Un asesor puede confirmar las condiciones."}
+    self.assertTrue(pilot.validate(draft,clean)["human_review"])
  def test_sensitive_credentials_not_an_ai_output(self):
   clean=pilot.prepare({"conversation_id":3,"message":"Quiero una opción de 128 GB negro"})
   ans={"intent":"consulta","model":"iPhone 15","storage_gb":128,
