@@ -127,73 +127,43 @@ def stage(src,candidate,proposal,issue):
  return report
 
 def run(api=lab.api_json):
+ """Two attempts per cycle at most; four total API proposals per UTC day.
+
+ Only safe metadata and fictional transcripts are persisted. Every candidate
+ remains a private, inert review artifact unless independently approved.
+ """
+ from proposal_iteration import attempt_sequence
  DATA.mkdir(mode=0o700,parents=True,exist_ok=True)
- with open(lab.LOCK,"a+") as f:
+ with open(lab.LOCK,"a+",encoding="utf8") as f:
   os.fchmod(f.fileno(),0o600)
   fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
   state=_load(lab.STATE,lab.previous_state())
   past=_load(HISTORY,[])
   day=datetime.now(timezone.utc).date().isoformat()
-  if sum(x.get("day")==day for x in past)>=MAX_DAILY:return {"status":"daily_proposal_cap"}
+  used=sum((len(x["attempts"]) if isinstance(x.get("attempts"),list) else 1)
+        for x in past if x.get("day")==day)
+  if used>=MAX_DAILY:return {"status":"daily_proposal_cap","attempts":[]}
   issue=pick_issue(_load(lab.ISSUES,[]))
-  if issue is None:return {"status":"no_matching_issue"}
-  if any(x.get("issue_id")==issue["id"] and x.get("status")=="staged_for_human_review" for x in past):return {"status":"already_proposed","issue_id":issue["id"]}
+  if issue is None:return {"status":"no_matching_issue","attempts":[]}
+  if any(x.get("issue_id")==issue["id"] and
+         x.get("status") in ("review_ready_not_deployed","staged_for_human_review")
+         for x in past):
+   return {"status":"already_proposed","issue_id":issue["id"],"attempts":[]}
   original=BOT.read_text(encoding="utf8")
   _,method,_=method_area(original)
-  if state.get("day")==day and state.get("api_calls",0)>=lab.MAX_DAILY:return {"status":"shared_api_budget_exhausted"}
-  lab.reserve(state)
+  if method.count(COLOR_ANCHOR)!=1:
+   return {"status":"trusted_source_drift","issue_id":issue["id"],"attempts":[]}
   try:
-   proposed=api(stored_key(),SYSTEM,json.dumps({
-     "fictional_dialogue":[{"buyer":x.get("buyer","")[:155],"bot":x.get("bot","")[:230]} for x in issue["evidence"]],
-     "source_method":method,"replace_only_this_exact_block":COLOR_ANCHOR},ensure_ascii=False)[:8500],SCHEMA,"ruby_patch_proposal")
-  finally:_atomic_json(lab.STATE,state)
-  try:
-   if not isinstance(proposed,dict) or set(proposed)!=set(SCHEMA["required"]):raise ValueError("schema mismatch")
-   if method.count(COLOR_ANCHOR)!=1:raise ValueError("fixed anchor drifted")
-   proposed=dict(proposed,search=COLOR_ANCHOR)
-   candidate=validate_patch(original,proposed)
-  except (ValueError,TypeError) as exc:result={"status":"proposal_rejected_by_static_rules","issue_id":issue["id"],"rule_rejection":str(exc)[:100]}
-  else:
-   if not syntax_only(candidate):result={"status":"ruby_syntax_rejected","issue_id":issue["id"]}
-   else:
-    # Model-generated code is never run in the production Chatwoot container.
-    # Assess it only in a fresh Docker sandbox without network, host mounts or
-    # credentials. Reject zero improvement, regressions, or failed full suites.
-    from sandbox_review import compare
-    from isolated_gate import gates
-    behavior=compare(original,candidate)
-    if behavior["status"]!="behavior_passed":
-     result={"status":"rejected_behavior_regression","issue_id":issue["id"],
-        "baseline_pass":behavior["baseline_pass"],
-        "candidate_pass":behavior["candidate_pass"],
-        "regressed":behavior["regressed"],"auto_deploy":False}
-    else:
-     from sandbox_stress import analyze
-     stress=analyze(original,candidate)
-     if stress["status"]!="stress_passed":
-      result={"status":"rejected_independent_stress","issue_id":issue["id"],
-          "stress_regressions":stress["regressions"],"auto_deploy":False}
-     else:
-      suite=gates(candidate)
-      if suite["status"]!="passed":
-       result={"status":"rejected_full_regression","issue_id":issue["id"],
-           "failed_suite":suite.get("suite"),"auto_deploy":False}
-      else:
-       saved=stage(original,candidate,proposed,issue)
-       saved["status"]="isolated_behavior_passed_human_review_required"
-       saved["sandbox_behavior"]=behavior
-       saved["sandbox_independent_stress"]=stress
-       saved["sandbox_ruby_suite"]=suite
-       saved["model_code_executed"]=True
-       saved["model_code_execution_environment"]="isolated network-disabled disposable container only"
-       saved["automatic_deployment_allowed"]=False
-       _atomic_json(STAGE/(saved["proposal_id"]+".json"),saved)
-       result={"status":"review_ready_not_deployed","issue_id":issue["id"],
-          "proposal_id":saved["proposal_id"],"passed_ruby":suite["total"],
-          "model_code_executed_only_in_sandbox":True,"automatic_deployment_allowed":False}
+   result=attempt_sequence(issue,original,method,api,stored_key(),state,
+      prior_attempts=used,max_attempts=min(2,MAX_DAILY-used))
+  finally:
+   _atomic_json(lab.STATE,state)
   record={"day":day,"at":datetime.now(timezone.utc).isoformat(),**result}
-  past.append(record);_atomic_json(HISTORY,past[-60:]);_atomic_json(SUMMARY,record)
+  past.append(record)
+  _atomic_json(HISTORY,past[-60:])
+  _atomic_json(SUMMARY,record)
   return record
+
 
 def main():
  p=argparse.ArgumentParser();m=p.add_mutually_exclusive_group(required=True)
