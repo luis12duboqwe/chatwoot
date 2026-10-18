@@ -148,3 +148,26 @@ inventario comercial confirmado, no se autorizaron reservas/pagos
 reales y no se ampliaron destinatarios. Cualquier falla futura de
 Groq o de las pruebas hará que se posponga el despliegue sin
 contaminar el inventario ni las comunicaciones de producción.
+
+## Auditoría adicional V3 — 18 oct 2026, después de 20:30 UTC
+
+Se detectó una repetición en V2 sobre «¿El cargador incluido es
+original?». La regla de accesorios de V2 contestaba con el mismo
+texto sobre precio/regalía usado ante la pregunta anterior sobre
+agregar una funda. Esta regresión se descubrió reejecutando los
+107 diálogos históricos en Ruby aislado sin Groq.
+
+**V2 quedó anulada**. La versión **V3**, identificada por el hash
+`d58682904e798606ede7dca3815fee8044f00f5efa87eb2f86220b3cfa520772`,
+ahora protege preguntas de autenticidad y tiene 15 controles negativos.
+Volvió a pasar 72/72 ventas ficticias, 48/48 cuotas, 108/108 variantes,
+117 regresiones Ruby y 107/107 conversaciones sin señales deterministas
+adicionales. Groq aprobó nuevamente la regla crítica
+`no_issue` sobre el SHA V3 exacto. Sigue SIN desplegar hasta la
+siguiente ventana y cupo de promoción.
+
+El promotor `combined_pilot_promotion.py` ahora exige comparar
+también TODOS los casos históricos almacenados, para evitar que una
+mejora amplíe respuestas repetitivas sobre temas diferentes.
+El estado comercial sigue bloqueado por falta de inventario verificable.
+Ver `ENTRENAMIENTO_ACELERADO.md` para cadencias y controles.
