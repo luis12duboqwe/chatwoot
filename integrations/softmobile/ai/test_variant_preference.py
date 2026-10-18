@@ -85,6 +85,27 @@ class VariantPreferenceTests(unittest.TestCase):
       "human_review":False,
       "suggested_reply":"Un asesor puede confirmar las condiciones."}
     self.assertTrue(pilot.validate(draft,clean)["human_review"])
+ def test_comparison_question_is_not_selected_variant(self):
+  clean=pilot.prepare({"conversation_id":3,
+    "message":"¿Y el negro de 128GB cuesta lo mismo?",
+    "context":{"model":"iPhone 14 Pro Max","storage_gb":256,"color_options":"blanco"}})
+  import json
+  data=json.loads(pilot.payload(clean)["messages"][1]["content"])
+  self.assertTrue(data["comparison_only"])
+  self.assertEqual(data["selected_preference"]["storage_gb"],None)
+  self.assertEqual(data["selected_preference"]["color"],None)
+  base={"intent":"consulta","model":"iPhone 14 Pro Max","storage_gb":256,
+    "color_options":["blanco"],"city":None,"pickup_location":None,
+    "human_review":True,"suggested_reply":"Un asesor revisará la comparación."}
+  self.assertEqual(pilot.validate(dict(base),clean)["storage_gb"],256)
+  with self.assertRaises(pilot.PilotError):
+   pilot.validate(dict(base,storage_gb=128,color_options=["negro"]),clean)
+ def test_condition_question_needs_human_but_generic_review_can_be_safe(self):
+  clean=pilot.prepare({"conversation_id":3,"message":"¿Es nuevo o usado? ¿Puedo revisarlo?"})
+  base={"intent":"consulta","model":None,"storage_gb":None,
+    "color_options":[],"city":None,"pickup_location":None,
+    "human_review":False,"suggested_reply":"Un asesor puede confirmar el estado del equipo."}
+  self.assertTrue(pilot.validate(base,clean)["human_review"])
  def test_sensitive_credentials_not_an_ai_output(self):
   clean=pilot.prepare({"conversation_id":3,"message":"Quiero una opción de 128 GB negro"})
   ans={"intent":"consulta","model":"iPhone 15","storage_gb":128,
