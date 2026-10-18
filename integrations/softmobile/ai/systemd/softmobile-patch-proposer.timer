@@ -1,0 +1,11 @@
+[Unit]
+Description=Generate inert Ruby proposal files four times a day
+
+[Timer]
+OnCalendar=*-*-* 02,08,14,20:25:00
+AccuracySec=1min
+Persistent=false
+Unit=softmobile-patch-proposer.service
+
+[Install]
+WantedBy=timers.target
