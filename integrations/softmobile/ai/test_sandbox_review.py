@@ -89,7 +89,10 @@ class SandboxReviewTests(unittest.TestCase):
    self.assertIn("--read-only",cmd)
    return Resp()
   sample="module SoftMobileSales;end\n"+gate.SEPARATOR+"  puts 'test'\n"
-  result=gate.gates(sample,runner=runner)
+  # Stub local fixture files so this command-construction test also runs
+  # on GitHub runners without the VPS's absolute quality/ paths.
+  with patch.object(gate.Path,"read_text",return_value="puts 'offline fixture'"):
+   result=gate.gates(sample,runner=runner)
   self.assertEqual(result["status"],"passed")
   self.assertEqual(result["total"],117)
   self.assertEqual(len(observed),7)
