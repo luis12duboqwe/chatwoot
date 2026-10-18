@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-18T01:37:11.956803+00:00",
+  "comparison": {
+    "status": "review_ready",
+    "total": 16,
+    "targeted_fixed": [
+      "mix-first",
+      "mix-followup",
+      "mix-bundle",
+      "eta-first",
+      "eta-first-new",
+      "eta-order",
+      "eta-variant"
+    ],
+    "unmet_targets": [],
+    "regressions": [],
+    "unchanged_non_targets": 9,
+    "candidate_not_deployed": true,
+    "public_messages_sent": 0
+  },
+  "ruby_gate": {
+    "status": "passed",
+    "tests": {
+      "engine": 57,
+      "regression": 5,
+      "historical": 7,
+      "journeys": 20,
+      "pilot": 11,
+      "payment": 2,
+      "future": 15
+    },
+    "total": 117
+  },
+  "base_sha256": "e1c5fd9d11754972b60257f906907d48e918b905584930e8adbbc3c57e55dacd",
+  "candidate_sha256": "99b04ee8cab0a9ad175c1a973491c4943144ac21e448c4a17f5633481a7d4ceb",
+  "approved_for_production": false
+}
