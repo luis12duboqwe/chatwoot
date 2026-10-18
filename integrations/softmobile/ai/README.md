@@ -630,3 +630,74 @@ El generador `patch_proposer.py` ejecuta estas pruebas aisladas
 en futuras propuestas Groq antes de clasificarlas como aptas para revisión.
 Los cambios no seleccionados por las reglas de despliegue existentes
 **nunca** se instalan autónomamente.
+
+## Fase 9 — revisión de seguridad y nuevas familias de reparación (18 oct 2026 UTC)
+
+Se amplió el catálogo de respuestas comerciales que pueden seleccionarse
+por Groq e instalarse automáticamente **solo si pasan los controles
+existentes**. El motor seguro ahora reconoce cuatro familias:
+
+- `advisor_eta`: evita inventar un plazo de respuesta humana.
+- `tracking_followup`: consulta de número de guía o rastreo del envío.
+- `prepurchase_inspection`: pregunta por probar o revisar la unidad antes
+  de comprar o pagar; no promete que sea posible.
+- `optional_coverage`: consulta de seguro opcional de pantalla, protección
+  contra daños o garantía extendida; no promete existencia, cobertura, costo
+  ni aprobación de un seguro.
+
+Se añadió `family_gate.py` como requisito obligatorio antes de la
+batería completa: 15 casos positivos/negativos ejecutados en un contenedor
+ephemeral Docker `--network none`, `--read-only`, UID no privilegiada,
+sin montajes del VPS ni acceso al Chatwoot productivo. Detecta si
+consultas de reparación, daños posteriores a compra, garantía estándar,
+precio, fotos o stock quedan confundidas con las familias nuevas.
+
+### Primera promoción: cobertura opcional
+
+Hallazgo de ejemplo de prueba `33367edaf5b0271c9b`.
+Groq seleccionó una respuesta segura para preguntar por protección
+adicional del teléfono. Se reprodujo el diálogo, pasaron **15/15**
+casos aislados y **117/117** regresiones Ruby. Despliegue automatizado al
+piloto completado con respaldo
+`sales-bot.autofix.20261018T005139Z.bak`. La política instalada tiene
+las familias `advisor_eta` y `optional_coverage`. No se modificó el
+número de cuenta/bandeja/conversación autorizado (2/2/3). No se enviaron
+mensajes reales desde las simulaciones.
+
+### Segunda propuesta: prueba de teléfono antes de comprar
+
+Hallazgo ficticio `db278a3db2956d4a69`: respuesta anterior omitía
+la pregunta sobre probar el teléfono antes de comprar. Nuevo candidato
+`prepurchase_inspection` verificado por replay, **15/15** casos
+aislados y las **117/117** pruebas Ruby. La nueva regla **no se instaló**
+porque el límite seguro permanece en UNA promoción automática diaria.
+Se conservaron candidato privado y resultados para reevaluación en la
+siguiente ventana elegible. No se anticipa aprobación ni se omite el
+bloqueo por límite diario.
+
+### Seguridad del generador de código no aprobado
+
+`patch_proposer.syntax_only()` ya no analiza propuestas AI dentro del
+contenedor productivo Chatwoot, ni siquiera mediante `ruby -c`. Ahora
+invoca el parser Ruby exclusivamente en un contenedor efímero restringido,
+sin red, montajes, acceso al socket Docker ni secretos de Chatwoot.
+La cadena de evaluación posterior mantiene 30 comparaciones originales,
+150 casos sintéticos adicionales y 117 regresiones completas, también
+en aislamiento. En el estado nuevo, el PR #3 continúa validado y no
+aplicado al bot.
+
+Las **143/143 pruebas Python locales** pasaron; `test_family_gate.py`
+usa datos simulados embebidos para ejecutarse también en GitHub CI sin
+copiar a ese repositorio los hallazgos privados del VPS.
+
+### Límites
+
+El generador de código AI arbitrario nunca se despliega al piloto sin
+revisión y autorización. Los fixes automáticos están limitados a
+plantillas estáticas, un despliegue diario, el flujo de pruebas
+independientes, respaldo y reversión. Se mantienen los servicios de
+laboratorio y el estado de propuestas de revisión separado de los chats
+reales.
+
+Solo pruebas reales autorizadas de recepción y envío en el dispositivo
+piloto podrían justificar ampliar cobertura a otras bandejas.
