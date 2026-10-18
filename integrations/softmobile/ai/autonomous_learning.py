@@ -258,7 +258,8 @@ def evaluate(max_deploy=False,api=lab.api_json,key=None):
  if len(pack["rules"])>=MAX_RULES:return {"status":"max_learned_rules_reached"}
  history=_load(HISTORY,[])
  day=datetime.now(timezone.utc).date().isoformat()
- if max_deploy and sum(x.get("day")==day and x.get("promoted") for x in history)>=MAX_DEPLOYS:
+ if max_deploy and sum(x.get("day")==day and x.get("promoted") is True
+                      for x in history if isinstance(x,dict))>=MAX_DEPLOYS:
   return {"status":"daily_deployment_cap"}
  rows=candidate_issues(_load(lab.ISSUES,[]),pack)
  if not rows:return {"status":"no_eligible_new_issue"}
