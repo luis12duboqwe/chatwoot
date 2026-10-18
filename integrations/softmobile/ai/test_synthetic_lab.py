@@ -38,6 +38,46 @@ class LaboratoryTests(TestCase):
   self.assertEqual(z,1)
   self.assertEqual(len(x),4)
   self.assertEqual(x[0],clean)
+ def test_curated_availability_probe_cannot_be_crowded_out_by_groq(self):
+  generated=[{"category":"questions","messages":["Busco un Samsung A54",f"Duda numero {i}","¿Y su precio?"]}
+             for i in range(4)]
+  selected,accepted,_=lab.select_valid_scenarios({"scenarios":generated})
+  self.assertEqual(len(selected),lab.MAX_BATCH)
+  self.assertEqual(accepted,lab.MAX_BATCH-1)
+  self.assertIn(lab.DEFAULT_CASES[0],selected)
+  self.assertIn("¿Tienen iPhone 16 Pro?",lab.DEFAULT_CASES[0]["messages"])
+ def test_live_legacy_stock_dead_end_is_flagged_in_synthetic_dialogue(self):
+  dialogue={"category":"questions","turns":[
+   {"buyer":"Hola","bot":"¿Qué celular buscás?"},
+   {"buyer":"¿Tienen iPhone 14 Pro Max?","bot":"Aún no tengo la existencia confirmada. Un asesor debe revisar con el proveedor."},
+   {"buyer":"Me interesa","bot":"¿De cuántos GB y color lo buscás?"}]}
+  self.assertIn("stock_no_next_step",lab.static_flags(dialogue))
+ def test_offline_static_detection_survives_provider_cooldown_and_is_persisted(self):
+  import copy
+  with tempfile.TemporaryDirectory() as temp:
+   root=Path(temp)
+   turns=[{"buyer":x,"bot":"Un asesor verificará la existencia.","intent":"stock","human":True}
+          for x in lab.DEFAULT_CASES[0]["messages"]]
+   def runner(scenarios):
+    return [{"category":case["category"],"turns":(
+      turns if case==lab.DEFAULT_CASES[0] else
+      [{"buyer":m,"bot":"¿Qué color y capacidad buscás?","intent":"other","human":False}
+       for m in case["messages"]])} for case in scenarios]
+   with patch.dict("os.environ",{"SOFTMOBILE_LAB_AI_ENABLED":"true"}),\
+        patch.object(lab,"STATE",root/"state.json"),\
+        patch.object(lab,"ISSUES",root/"issues.json"),\
+        patch.object(lab,"SUMMARY",root/"summary.json"),\
+        patch.object(lab,"LOCK",root/"lock"),\
+        patch.object(lab,"state_at",return_value=120),\
+        patch.object(lab,"simulate",side_effect=runner),\
+        patch.object(lab,"api_json",side_effect=AssertionError("Must not call Groq")):
+    result=lab.run(use_ai=True)
+    stored=lab._load(lab.ISSUES,[])
+   self.assertEqual(result["mode"],"curated_deterministic_provider_unavailable")
+   self.assertEqual(result["simulated"],4)
+   self.assertEqual(result["public_messages_sent"],0)
+   self.assertTrue(any("stock_no_next_step" in x.get("static_flags",[]) for x in stored))
+   self.assertTrue(all(x.get("grade") is None for x in stored))
  def test_unverified_price_suggestion_rejected(self):
   for msg in ("El envío cuesta 15 € adicionales.",
       "El precio total sería 1,200,000 lempiras.", "La garantía se extiende por 2 años."):
@@ -135,7 +175,7 @@ end
          "reason":"La consulta ahora se interpreta correctamente",
          "suggested_reply":"","expected_behavior":""}
   replay={"category":"questions","turns":[
-    {"buyer":m,"bot":"Ahora: respuesta adecuada","intent":"other","human":False}
+    {"buyer":m,"bot":("¿Qué capacidad y color buscás?" if "¿Tienen iPhone" in m else "Ahora: respuesta adecuada"),"intent":"other","human":False}
     for m in self.scenarios[0]["messages"]]}
   state=lab.previous_state()
   with tempfile.TemporaryDirectory() as temp:

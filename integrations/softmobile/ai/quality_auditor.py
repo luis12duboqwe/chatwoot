@@ -27,7 +27,7 @@ STATE=DATA/"state.json"
 FINDINGS=DATA/"findings.json"
 REPORT=DATA/"summary.json"
 SCORE_HISTORY=DATA/"quality-score-history.json"
-ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20,"finish_color_not_understood":25,"shipping_reference_ignored":30,"affirmation_repeated_summary":20}
+ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20,"finish_color_not_understood":25,"shipping_reference_ignored":30,"affirmation_repeated_summary":20,"stock_no_next_step":30}
 CONVERSATION_ID=3
 MAX_SCAN=60
 from groq_usage_policy import request_cap
@@ -46,11 +46,13 @@ CONCERNS={
   "finish_color_not_understood": ("medium","El bot ignoró una preferencia expresada como color titanium o titanio."),
   "shipping_reference_ignored": ("medium","El cliente dio una referencia de envío y el bot no la reconoció."),
   "affirmation_repeated_summary": ("medium","El bot repitió el resumen comercial tras una confirmación breve."),
+  "stock_no_next_step": ("medium","El bot no pregunta la variante que falta y corta una consulta de existencia."),
 }
 CHOICES={"efectivo","transferencia","transferencias","tarjeta","con tarjeta","pago con tarjeta","por transferencia","en efectivo","pago en efectivo"}
 SAFE_TEMPLATES={
  "payment_choice_repeat":"Perfecto, anoté efectivo como forma de pago. Un asesor confirmará el precio y la disponibilidad antes de coordinar.",
- "pickup_shipping_ambiguity":"¿Preferís retirarlo en Mall Galerías o recibirlo por envío a esa zona? Un asesor confirmará los detalles antes de coordinar."
+ "pickup_shipping_ambiguity":"¿Preferís retirarlo en Mall Galerías o recibirlo por envío a esa zona? Un asesor confirmará los detalles antes de coordinar.",
+ "stock_no_next_step":"Podemos consultar por ese modelo. Todavía no tengo existencias confirmadas. ¿De cuántos GB y en qué color lo buscás?"
 }
 LOCATIONS={"galerias","mall galerias","plaza numa","plaza criolla","choloma"}
 # Historical pilot case IDs backed by seven independent deterministic Ruby replays.
@@ -78,6 +80,8 @@ SYSTEM=(
  "El diálogo está anonimizado y limitado a la conversación piloto. "
  "Detecta respuestas que repiten preguntas, ignoran respuestas de compradores, inventan precio, "
  "existencia, descuentos, reservas, garantía, envío, aprobaciones o resultados de pago. "
+ "Si un comprador pregunta si hay un modelo sin decir GB, el bot DEBE preguntar capacidad y color " 
+ "sin prometer stock; no basta responder que el asesor verificara disponibilidad. "
  "Cuando el comprador elige EFECTIVO tras escuchar métodos, el bot debe reconocerlo y "
  "trasladar validación de precio/stock a vendedor, no repetir todos los métodos. "
  "Si cliente menciona Galerías tras envío, aclarar si es retiro en Mall Galerías o dirección de envío. "
@@ -207,6 +211,18 @@ def detect(pair,prior_reply=""):
  if text in LOCATIONS and ("envio" in reply or "envío" in reply):
   if not ("retir" in reply and ("envío" in reply or "envio" in reply) and "?" in pair["reply"]):
    hits.append("pickup_shipping_ambiguity")
+ # On an incomplete model inquiry, not inventing stock is necessary but
+ # insufficient: the assistant must also advance the buyer's variant choice.
+ # Only evaluate an explicit availability inquiry with model/brand provided
+ # and NO storage; do not penalize full quotes, complaints or escalations.
+ stock_inquiry=bool(re.search(r"\b(?:tienen|tiene|hay|disponible|disponibilidad|existencia|en stock|manejan|venden)\b",text))
+ explicit_model=bool(re.search(r"\b(?:iphone|samsung|galaxy|pixel|redmi)\b|\b(?:1[1-7]|8)\s+(?:pro(?:\s+max)?|plus)\b|\b(?:s2[0-9]|note\s+20)\s+(?:ultra|plus)\b",text))
+ has_storage=bool(re.search(r"\b(?:32|64|128|256|512|1024)\s*(?:gb|gigas?)\b",text))
+ needs_variant=bool(re.search(r"\b(?:cuantos?\s*(?:gb|gigas?)|de cuantos?\s*(?:gb|gigas?)|que\s+capacidad|que\s+almacenamiento|en que color|que color|cual color|que version|cual version)\b",reply))
+ if (stock_inquiry and explicit_model and not has_storage
+     and not re.search(r"\b(?:asesor|persona|humano|reclamo|garantia|devolucion|reembolso|mi pedido|mi compra|ya pague)\b",text)
+     and not needs_variant):
+  hits.append("stock_no_next_step")
  if UNSAFE.search(reply):
   hits.append("unsafe_claim")
  # Repetition is not necessarily an error if the client repeats the same question
