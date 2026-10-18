@@ -567,3 +567,66 @@ existing 117 commercial cases plus the new regression journey, check
 false positives, and approve a separately gated pilot rollout. Do not
 merge/execute untrusted diffs automatically. The existing bounded
 repair scheduler continues independently.
+
+## Fase 8 — Evaluación aislada de propuestas nuevas (18 octubre 2026, UTC)
+
+Se agregó un flujo de evaluación **antes de presentar código nuevo para revisión**:
+1. `patch_proposer.py` valida alcance, riesgos estáticos y sintaxis del cambio.
+2. `sandbox_review.py` ejecuta **30 conversaciones determinísticas** sobre
+   el motor Ruby del bot actual y sobre el candidato.
+3. `sandbox_stress.py` genera otras **150 variantes independientes** con
+   colores, capacidades, alternativas condicionales, comparaciones y decisiones
+   explícitas del comprador. Un parche que introduce cualquier regresión
+   comprobada en estas pruebas queda rechazado.
+4. `isolated_gate.py` exige las **117 regresiones comerciales Ruby**.
+5. Solo si supera las tres puertas, se guarda un reporte de candidato
+   `review_ready` y un archivo de diferencia para revisión humana.
+   **No existe ninguna llamada a instalación automática de este código.**
+
+### Aislamiento de seguridad
+
+Todas las evaluaciones de código candidato utilizan contenedores Docker
+efímeros basados en la imagen Chatwoot local, con `--network none`,
+`--read-only`, `--user 65534:65534`, `--cap-drop ALL`,
+`--security-opt no-new-privileges`, límite de memoria/CPU y procesos,
+sin montajes de código, disco o socket del VPS. Se bloquea la consulta
+a catálogo HTTP del motor Ruby mediante un sustituto de pruebas de solo
+inventario vacío. La candidata nunca se ejecuta en el contenedor productivo
+ni se usa Rails runner de producción.
+
+Una imagen/contendor aislado reduce el riesgo, pero no prueba que un parche
+desconocido sea seguro. Por eso la publicación/aplicación continúa sujeta
+a revisión humana.
+
+### PR #3: Caso color/capacidad
+
+Primera propuesta rechazada: 23/30 respuestas correctas (iguales al original),
+con 6 errores corregidos pero 6 regresiones.
+
+Segunda propuesta determinística para revisión:
+- Primer conjunto: original **23/30**, candidata **30/30**;
+  7 problemas corregidos, ninguna regresión en las pruebas.
+- Conjunto independiente de 150: original **60/150**,
+  candidata **150/150**, 90 mejoras, ninguna regresión.
+- Batería Ruby completa candidata **117/117** superada.
+- Pruebas Python de herramientas **133/133** aprobadas en el VPS.
+- Código público bot activo: **sin modificaciones**.
+- URL PR borrador: https://github.com/luis12duboqwe/chatwoot/pull/3
+
+Las estadísticas describen solo conjuntos sintéticos específicos, no
+rendimiento de ventas, cobertura total del lenguaje o calidad real
+en WhatsApp. El PR #3 contiene únicamente archivos inertes de propuesta
+y evidencia, sin despliegue. PR #2 conserva el motor y la infraestructura
+de auditoría, igualmente en borrador.
+
+Falta aún revisión autorizada del código, evaluación de datos distintos
+a los conjuntos desarrollados aquí, confirmación CI y una prueba con
+dispositivo piloto antes de producción.
+
+### Uso local
+`python3 sandbox_review.py --proposal quality/untrusted-patch-proposals/<propuesta>.diff`
+
+El generador `patch_proposer.py` ejecuta estas pruebas aisladas
+en futuras propuestas Groq antes de clasificarlas como aptas para revisión.
+Los cambios no seleccionados por las reglas de despliegue existentes
+**nunca** se instalan autónomamente.
