@@ -151,9 +151,34 @@ def run(api=lab.api_json):
   else:
    if not syntax_only(candidate):result={"status":"ruby_syntax_rejected","issue_id":issue["id"]}
    else:
-    saved=stage(original,candidate,proposed,issue)
-    result={"status":"staged_for_human_review","issue_id":issue["id"],"proposal_id":saved["proposal_id"],
-       "model_code_executed":False,"automatic_deployment_allowed":False}
+    # Model-generated code is never run in the production Chatwoot container.
+    # Assess it only in a fresh Docker sandbox without network, host mounts or
+    # credentials. Reject zero improvement, regressions, or failed full suites.
+    from sandbox_review import compare
+    from isolated_gate import gates
+    behavior=compare(original,candidate)
+    if behavior["status"]!="behavior_passed":
+     result={"status":"rejected_behavior_regression","issue_id":issue["id"],
+        "baseline_pass":behavior["baseline_pass"],
+        "candidate_pass":behavior["candidate_pass"],
+        "regressed":behavior["regressed"],"auto_deploy":False}
+    else:
+     suite=gates(candidate)
+     if suite["status"]!="passed":
+      result={"status":"rejected_full_regression","issue_id":issue["id"],
+          "failed_suite":suite.get("suite"),"auto_deploy":False}
+     else:
+      saved=stage(original,candidate,proposed,issue)
+      saved["status"]="isolated_behavior_passed_human_review_required"
+      saved["sandbox_behavior"]=behavior
+      saved["sandbox_ruby_suite"]=suite
+      saved["model_code_executed"]=True
+      saved["model_code_execution_environment"]="isolated network-disabled disposable container only"
+      saved["automatic_deployment_allowed"]=False
+      _atomic_json(STAGE/(saved["proposal_id"]+".json"),saved)
+      result={"status":"review_ready_not_deployed","issue_id":issue["id"],
+         "proposal_id":saved["proposal_id"],"passed_ruby":suite["total"],
+         "model_code_executed_only_in_sandbox":True,"automatic_deployment_allowed":False}
   record={"day":day,"at":datetime.now(timezone.utc).isoformat(),**result}
   past.append(record);_atomic_json(HISTORY,past[-60:]);_atomic_json(SUMMARY,record)
   return record
