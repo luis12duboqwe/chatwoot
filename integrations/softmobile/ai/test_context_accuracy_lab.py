@@ -34,4 +34,42 @@ class NewContextTests(unittest.TestCase):
    self.assertFalse(r["ai_approved"])
    key.assert_not_called()
 
+ def test_reuse_one_good_groq_verdict_without_second_call(self):
+  import hashlib,json,tempfile
+  from pathlib import Path
+  from datetime import datetime,timezone
+  with tempfile.TemporaryDirectory() as tmp:
+   root=Path(tmp);source="fictional Ruby only"
+   sha=hashlib.sha256(source.encode()).hexdigest()
+   (root/"candidate.rb").write_text(source)
+   now=datetime.now(timezone.utc).isoformat()
+   existing={"candidate_sha256":sha,"status":"provider_or_grade_unavailable",
+     "at":now,"judgments":[{"case":"color-black-to-blue",
+       "error":False,"reason":"Correcto","reviewed_at":now}]}
+   full={"status":"review_ready_needs_independent_ai","candidate_sha256":sha}
+   stage={"candidate_sha256":sha,"stage_file":"candidate.rb"}
+   def load(file,default=None):
+    if file==ai.REPORT:return existing
+    if file==ai.QA/"variant-context-full-review.json":return full
+    if file==ai.patch.REPORT:return stage
+    if file==ai.lab.STATE:return ai.lab.previous_state()
+    return default
+   answer={"error":False,"severity":"low","category":"no_issue",
+      "reason":"Se atendió la preferencia","suggested_reply":"","expected_behavior":""}
+   observed=[]
+   def api(*args):
+    observed.append(args);return answer
+   fake=lambda rows,source=None:[{"id":rows[0]["id"],
+      "turns":[{"buyer":v,"bot":"El cliente prefiere 64GB"} for v in rows[0]["scenario"]["messages"]]}]
+   with patch.object(ai,"QA",root),patch.object(ai,"REPORT",root/"prior.json"),\
+      patch.object(ai.patch,"STAGE",root),patch.object(ai.patch,"REPORT",root/"stage.json"),\
+      patch.object(ai,"_load",side_effect=load),patch.object(ai,"state_at",return_value=0),\
+      patch.object(ai.replay,"isolated_replay",side_effect=fake),\
+      patch.object(ai.lab,"STATE",root/"budget.json"):
+    result=ai.evaluate(api=api,key="fake")
+   self.assertTrue(result["ai_approved"])
+   self.assertEqual(result["status"],"ai_approved_for_review")
+   self.assertEqual(result["ai_calls"],1)
+   self.assertEqual(len(observed),1)
+
 if __name__=="__main__":unittest.main()
