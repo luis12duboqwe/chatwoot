@@ -1,0 +1,52 @@
+{
+  "candidate_review_only": true,
+  "existing_bot_modified": false,
+  "targeted_test": {
+    "status": "review_ready",
+    "total": 42,
+    "targeted_fixed": [
+      "mix-first",
+      "mix-followup",
+      "mix-bundle",
+      "eta-first",
+      "eta-first-new",
+      "eta-order",
+      "eta-variant",
+      "mixed-1",
+      "mixed-2",
+      "mixed-3",
+      "mixed-4",
+      "ship-1",
+      "ship-2",
+      "ship-3",
+      "order-1",
+      "order-3",
+      "change-1",
+      "change-2",
+      "change-3"
+    ],
+    "unmet_targets": [],
+    "regressions": [],
+    "unchanged_non_targets": 23,
+    "candidate_not_deployed": true,
+    "public_messages_sent": 0,
+    "source_hash": "e1c5fd9d11754972b60257f906907d48e918b905584930e8adbbc3c57e55dacd",
+    "candidate_hash": "0272486ab359df72ddcb92f02ab0c884bbd9e977ed74fdc83d3f9d5d49d6457c",
+    "existing_pilot_unchanged": true
+  },
+  "ruby_regressions": {
+    "status": "passed",
+    "tests": {
+      "engine": 57,
+      "regression": 5,
+      "historical": 7,
+      "journeys": 20,
+      "pilot": 11,
+      "payment": 2,
+      "future": 15
+    },
+    "total": 117
+  },
+  "source_sha256": "e1c5fd9d11754972b60257f906907d48e918b905584930e8adbbc3c57e55dacd",
+  "candidate_sha256": "0272486ab359df72ddcb92f02ab0c884bbd9e977ed74fdc83d3f9d5d49d6457c"
+}
