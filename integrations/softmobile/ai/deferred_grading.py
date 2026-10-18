@@ -95,14 +95,17 @@ def evaluate(rows,issues,state,api=lab.api_json,key=None,now=None):
    row["graded_at"]=now.isoformat()
    row.pop("next_grading_after",None)
    row["status"]="synthetic_unverified" if grade["error"] or row.get("static_flags") else "synthetic_no_issue_observed"
+   match=next((x for x in issues if isinstance(x,dict) and x.get("id")==row["id"]),None)
+   if match is not None and match.get("grade") is None:
+    # Preserve even a NEGATIVE AI verdict for accurate triage. Never mark an
+    # independently flagged static issue as resolved merely on an AI opinion.
+    match["grade"]=grade
+    match["latest_independent_grade_at"]=now.isoformat()
    if grade["error"]:
     output["flagged_for_review"]+=1
-    match=next((x for x in issues if isinstance(x,dict) and x.get("id")==row["id"]),None)
     if match is None:
      issues.append({k:row[k] for k in ("id","at","source","category","scenario","evidence","grade","static_flags","status")})
      issues[-1]["eligible_for_unreviewed_code_change"]=False
-    elif match.get("grade") is None:
-     match["grade"]=grade
    else:
     output["approved_no_issue"]+=1
   except (RuntimeError,ValueError,TypeError,OSError):

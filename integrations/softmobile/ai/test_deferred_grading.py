@@ -39,6 +39,19 @@ class DeferredGradingTests(unittest.TestCase):
   self.assertTrue(r["grade"]["error"])
   self.assertEqual(len(issues),1)
   self.assertFalse(issues[0]["eligible_for_unreviewed_code_change"])
+ def test_no_issue_ai_opinion_is_recorded_even_when_static_signal_persists(self):
+  r=example()
+  r["status"]="synthetic_unverified";r["static_flags"]=["exact_repeat"]
+  issue=dict(r)
+  grade={"error":False,"severity":"low","category":"no_issue",
+    "reason":"Este mensaje requiere mayor contexto","suggested_reply":"","expected_behavior":""}
+  with tempfile.TemporaryDirectory() as temp,\
+      patch.object(lab,"STATE",Path(temp)/"state.json"),\
+      patch.object(d,"state_at",return_value=0):
+   result=d.evaluate([r],[issue],lab.previous_state(),api=lambda *a:grade,key="fixture")
+  self.assertEqual(result["approved_no_issue"],1)
+  self.assertEqual(issue["grade"]["error"],False)
+  self.assertEqual(issue["status"],"synthetic_unverified")
  def test_provider_failure_retries_without_new_case_or_duplicate(self):
   r=example();state=lab.previous_state()
   with tempfile.TemporaryDirectory() as temp,     patch.object(lab,"STATE",Path(temp)/"state.json"),     patch.object(d,"state_at",return_value=0):
