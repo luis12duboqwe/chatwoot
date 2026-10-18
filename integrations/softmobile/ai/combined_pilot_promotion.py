@@ -11,7 +11,7 @@ atomic rollback on unexpected post-deployment behavior, and the one/day cap.
 """
 import argparse
 from datetime import datetime,timezone
-import fcntl,hashlib,json,os,sys
+import fcntl,hashlib,json,os,sys,re,subprocess
 from pathlib import Path
 import tempfile
 
@@ -217,6 +217,30 @@ def independent_quality_approved(candidate):
  except (ValueError,TypeError,KeyError):
   return False
 
+def chatwoot_runtime_smoke(source,runner=subprocess.run):
+ """Run V4 self-tests INSIDE live Chatwoot Ruby/Rails, WITHOUT any customer writes.
+
+ The Ruby test branch exits before database reads and message posting.
+ This is a stronger gate than isolated Ruby because it uses the
+ container/rails-runner that executes the pilot in production.
+ """
+ if (not isinstance(source,str) or
+     source.count("if ENV['SM_MODE']=='test'")!=1 or
+     source.count("PILOT_CONVERSATION_ID = 3")!=1 or
+     source.count("INBOX_ID = 2")!=1):
+  return False
+ command=["docker","exec","-i","softmobile-chatwoot-rails-1","sh","-lc",
+          "SM_MODE=test RAILS_ENV=production bundle exec rails runner -"]
+ try:
+  reply=runner(command,input=source,text=True,capture_output=True,timeout=75)
+ except (OSError,subprocess.TimeoutExpired):
+  return False
+ if reply.returncode!=0:return False
+ match=re.search(r"BOT_TEST_CASES=(\d+) PASS=(\d+) FAIL=(\d+)",reply.stdout)
+ return bool(match and int(match[1])>=57 and
+             int(match[1])==int(match[2]) and int(match[3])==0)
+
+
 def promote(installer=fixer.deploy,validator=evidence):
  day=datetime.now(timezone.utc).date().isoformat()
  now=datetime.now(timezone.utc).isoformat()
@@ -241,6 +265,8 @@ def promote(installer=fixer.deploy,validator=evidence):
  tests=validator(current,expected)
  if tests.get("status")!="gates_passed":
   return {"at":now,"status":"independent_gates_failed","evidence":tests,"promoted":False}
+ if not chatwoot_runtime_smoke(expected):
+  return {"at":now,"status":"chatwoot_runtime_predeploy_failed","promoted":False}
  if learner.BOT.read_text()!=current:
   return {"at":now,"status":"concurrent_bot_change","promoted":False}
  result=installer(expected)
@@ -254,6 +280,8 @@ def promote(installer=fixer.deploy,validator=evidence):
   post=validator(current,learner.BOT.read_text())
   if post.get("status")!="gates_passed":
    raise RuntimeError("Post-deploy differential failure")
+  if not chatwoot_runtime_smoke(learner.BOT.read_text()):
+   raise RuntimeError("Post-deploy Chatwoot Rails runtime smoke failed")
  except BaseException:
   restore_before_going_live(current,expected)
   return {"at":now,"status":"postdeploy_failed_rolled_back","promoted":False,
@@ -262,6 +290,7 @@ def promote(installer=fixer.deploy,validator=evidence):
       "promoted":True,"pilot_only":True,
       "previous_sha256":digest(current),"new_sha256":digest(expected),
       "backup":result.get("backup_name"),"validation":tests,
+      "chatwoot_rails_runtime_smoke":"passed_before_and_after",
       "public_messages_sent_during_tests":0}
  history=_load(learner.HISTORY,[])
  _atomic_json(learner.HISTORY,(history+[row])[-100:])
