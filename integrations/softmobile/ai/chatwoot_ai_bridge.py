@@ -181,7 +181,7 @@ def run_once():
         clean = prepare({"conversation_id": CONV_ID, "message": msg["content"],
                          "context": preference_snapshot(msg.get("history", []))})
         output = suggest(clean, stored_key())
-        output, _was_guarded = guarded_draft(output)
+        output, _was_guarded = guarded_draft(output, clean)
         result = put_private(str(ident), format_note(str(ident), output))
         state["after_id"] = ident
         save_state(state)
