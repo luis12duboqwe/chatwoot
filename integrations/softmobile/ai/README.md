@@ -896,3 +896,64 @@ escribe notas internas de asesores en la conversación piloto autorizada.
 No hay transacciones, inventario integrado, reservas, WhatsApps a clientes
 ni despliegue nuevo del motor Ruby. Los resultados corresponden a una
 muestra sintética reducida, no a efectividad real de cierre de ventas.
+
+## Fase: objeciones y conversaciones comerciales de 5 turnos (18 oct 2026 UTC)
+
+Se verificaron **4 conversaciones de cinco mensajes ficticios cada una**
+mediante la API real de Groq, SIN escribir en Chatwoot ni WhatsApp. Temas:
+presupuesto, descuento, condición del equipo, financiación a cuotas,
+garantía, objeción por precio de otro vendedor, cambios de variante,
+comparación de precios, entrega, parte de pago, revisión física y
+disposición final de compra.
+
+### Fallos detectados y corregidos
+
+- Memoria `journey_memory.py`: «No quiero negro, mejor azul» conservaba
+  el negro; «¿Y el azul cuesta lo mismo?» sustituía la selección anterior
+  aunque fuera solo una comparación. Ahora actualiza ante una preferencia
+  afirmativa y conserva la elección en preguntas comparativas. Un rechazo
+  sin sustitución elimina el color rechazado.
+- `groq_pilot.py`: una pregunta sobre el precio de la segunda variante
+  ya NO se etiqueta como nueva elección. El JSON de entrada agrega
+  `comparison_only` y no fuerza `selected_preference` cuando se trata
+  exclusivamente de comparación. El validador mantiene la variante
+  previamente elegida o rechaza la propuesta y exige verificación humana
+  del estado nuevo/usado.
+- `suggestion_guard.py`: cuando una respuesta contiene precio, stock,
+  regalo, envío o financiamiento no verificados, el fallback privado
+  responde a la **objeción concreta** (precio, cuotas, descuento,
+  garantías, entrega, inspección, parte de pago, compra) en vez de
+  devolver siempre el mismo texto genérico. También intercepta una
+  consulta por parte de pago si el borrador ignoró esa intención.
+- `groq_sales_objections.py`: evaluación con límite estricto de 20
+  peticiones por ejecución, ritmo de 2 segundos entre peticiones en
+  `--run`, máximo 2 ejecuciones reales por día UTC, y aborto seguro
+  cuando hay errores HTTP 429/5xx o red. Las pruebas no envían
+  mensajes públicos. No se guardan respuestas ni chats de usuarios.
+
+### Evidencia
+
+1. Primera ronda real: **16/20** turnos superaron las comprobaciones;
+   1 pérdida de preferencia, 1 derivación humana omitida y 2 respuestas
+   poco relacionadas con la objeción. Se bloquearon 3 afirmaciones.
+2. Segunda ronda sin pausas: **12/20** aceptadas; 8 solicitudes fallaron
+   (proveedor o validación, causa no distinguida en el registro antiguo).
+   Estos 8 rechazos NO se contaron como fallos comerciales y motivaron
+   clasificar errores de API y reducir la velocidad de ejecución.
+3. Tercera ronda real con pausas y las correcciones: **20/20** cumplen el
+   control de memoria, tema relevante y derivación humana; **0** fallos
+   de memoria, **0** omisiones de derivación, **0** respuestas fuera de
+   tema según palabras-clave y **3** afirmaciones comerciales
+   interceptadas. Ningún error de proveedor en esa ejecución.
+4. **204/204 pruebas Python locales** aprobadas, incluidas pruebas de
+   presupuesto por día, interrupción tras error 429, fallos estructurados,
+   tratamiento de rechazo de color, comparación sin cambio de elección,
+   decisiones sensibles y fallback temático.
+
+El resultado indica conformidad en **esta muestra fija ficticia**, NO tasa
+de cierre real, ni calidad subjetiva de cada respuesta. Se utiliza
+evaluación con reglas determinísticas simples de tema, no una validación
+de ventas reales por un juez humano independiente. No hay integración
+de inventario, precios verificados ni autorización para autoenviar
+mensajes de Groq. El bot Ruby activo y el parche conversacional PR #4
+siguen sin cambios ni nuevas implementaciones de esta fase.
