@@ -68,6 +68,24 @@ class SuggestionGuardTests(unittest.TestCase):
   result,changed=guard.guarded_draft(row)
   self.assertFalse(changed)
   self.assertEqual(result,row)
+ def test_no_repeated_questions_when_buyer_already_specified(self):
+  clean={"message":"Ahora busco el iPhone 15 Pro de 256GB azul",
+     "context":{"model":"iPhone 15 Pro","storage_gb":"128","color_options":"negro"}}
+  for question in ("¿Qué modelo buscás?", "¿De cuántos GB lo querés?",
+                   "¿Qué color preferís?", "¿Cuál celular buscás?"):
+   with self.subTest(question=question):
+    res,blocked=guard.guarded_draft(
+     {"suggested_reply":question,"human_review":False},clean)
+    self.assertTrue(blocked)
+    self.assertTrue(res["human_review"])
+    self.assertEqual(res["suggested_reply"],guard.FALLBACK)
+ def test_nonrepetitive_follow_up_is_allowed(self):
+  clean={"message":"Quiero el iPhone 15 Pro de 256GB azul",
+    "context":{"model":"iPhone 15 Pro","storage_gb":"256","color_options":"azul"}}
+  res,blocked=guard.guarded_draft(
+   {"suggested_reply":"¿Lo preferís retirar o consultar envío?",
+    "human_review":True},clean)
+  self.assertFalse(blocked)
  def test_reject_invalid_shape(self):
   with self.assertRaises(ValueError):guard.guarded_draft({"human_review":True})
 
