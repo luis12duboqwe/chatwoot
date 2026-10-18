@@ -38,6 +38,21 @@ def evaluate(api=lab.api_json,key=None):
  import hashlib
  if hashlib.sha256(source.encode()).hexdigest()!=result["candidate_sha256"]:
   result["status"]="candidate_source_tampered";return result
+ prior=_load(REPORT,{})
+ if prior.get("candidate_sha256")==result["candidate_sha256"]:
+  for item in prior.get("judgments",[]):
+   if not isinstance(item,dict) or item.get("case") not in REVIEWED:
+    continue
+   try:
+    when=datetime.fromisoformat(item.get("reviewed_at",prior.get("at","")))
+    seconds=(datetime.now(timezone.utc)-when.astimezone(timezone.utc)).total_seconds()
+    if when.tzinfo and 0<=seconds<=86400 and isinstance(item.get("error"),bool):
+     result["judgments"].append(dict(item,reviewed_at=when.isoformat()))
+   except (TypeError,ValueError):pass
+ if any(row["error"] for row in result["judgments"]):
+  result["status"]="ai_flagged_needs_revision";return result
+ if len({row["case"] for row in result["judgments"]})==len(REVIEWED):
+  result["status"]="ai_approved_for_review";result["ai_approved"]=True;return result
  if state_at()>0:
   result["status"]="provider_cooldown";return result
  if not key:key=stored_key()
@@ -46,6 +61,7 @@ def evaluate(api=lab.api_json,key=None):
  selected=[row for row in __import__("context_accuracy_lab").CASES if row[0] in REVIEWED]
  state=_load(lab.STATE,lab.previous_state())
  for case_id,messages,expected in selected:
+  if any(row["case"]==case_id for row in result["judgments"]):continue
   fixture={"id":case_id,"scenario":{"category":"changes",
             "messages":(["Hola","Busco un iPhone 15"]+messages)[-3:]}}
   rows=replay.isolated_replay([fixture],source=source)
@@ -59,7 +75,7 @@ def evaluate(api=lab.api_json,key=None):
       ensure_ascii=False),lab.JUDGE_SCHEMA,"context_preference_quality")
    grade=validate_grader_observation(raw)
    result["judgments"].append({"case":case_id,"error":grade["error"],
-    "reason":grade["reason"][:220]})
+    "reason":grade["reason"][:220],"reviewed_at":datetime.now(timezone.utc).isoformat()})
   except (RuntimeError,TypeError,ValueError,OSError):
    result["status"]="provider_or_grade_unavailable";return result
   finally:
