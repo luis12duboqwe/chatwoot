@@ -14,7 +14,8 @@ SUMMARY=DATA/"patch-proposal-summary.json"
 HISTORY=DATA/"patch-proposal-history.json"
 START="    def context_from(texts)\n"
 STOP="    # Photo requests with two distinct models"
-MAX_DAILY=4
+from groq_usage_policy import request_cap
+MAX_DAILY=request_cap(4)
 COLOR_ANCHOR=("        choices=color_options(variant_str)\n"
  "        if choices.any?\n"
  "          data[:color_options]=choices\n"

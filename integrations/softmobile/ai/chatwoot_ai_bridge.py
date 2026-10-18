@@ -25,7 +25,8 @@ STATE = ROOT / ".pilot_bridge_state.json"
 CONV_ID = 3
 ACCOUNT_ID = 2
 INBOX_ID = 2
-MAX_DAILY_REQUESTS = 30
+from groq_usage_policy import request_cap
+MAX_DAILY_REQUESTS = request_cap(30)
 DOCKER_NAME = "softmobile-chatwoot-rails-1"
 PREFIX = "SM_AI_PRIVATE_NOTE_JSON="
 PERSONAL = re.compile(r"(?:[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|https?://\S+|"
