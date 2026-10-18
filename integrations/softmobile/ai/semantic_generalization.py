@@ -24,7 +24,7 @@ END="      # SM_GENERALIZED_EXTRA_ACCESSORY_END"
 RUBY_RULE=r'''      # SM_GENERALIZED_EXTRA_ACCESSORY_BEGIN
       if t.match?(/\b(?:funda|forro|estuche|protector|vidrio templado|cargador|accesorios?)\b/) &&
          t.match?(/\b(?:precio|cuanto|cuesta|costo|vale|agregar|anadir|incluir|incluida|incluido|adicional|aparte|pagarla|pagarlo)\b/) &&
-         !t.match?(/\b(?:reclamo|reclamar|devolucion|reembolso|garantia|dano|danado|defecto|falla|fallo|roto|quebrado|cambio por garantia|mi compra|ya compre|ya pague|pin|cvv|otp|clave|contrasena|banco|tarjeta|transferencia|deposito|reparacion|reparar|pedido|paquete)\b/) &&
+         !t.match?(/\b(?:reclamo|reclamar|devolucion|reembolso|garantia|dano|danado|defecto|falla|fallo|roto|quebrado|cambio por garantia|mi compra|ya compre|ya pague|pin|cvv|otp|clave|contrasena|banco|tarjeta|transferencia|deposito|reparacion|reparar|pedido|paquete|original|autentico|autentica|genuino|genuina|certificado|certificada)\b/) &&
          t.length<=155
         return {reply:"Todavía no puedo confirmarte el precio de la funda u otro accesorio ni ofrecerlo gratis; un asesor debe comprobar si la regalía aplica a ese equipo y cuánto costaría incluirlo.",
                 note:"CONSULTA DE ACCESORIO: verificar unidad y precio; no ofrecer regalos ni prometer accesorios.",
@@ -48,6 +48,7 @@ POSITIVE=[
 NEGATIVE=[
  "¿Cuánto cuesta el iPhone 15 Pro de 256 GB?",
  "¿Qué garantía tienen los equipos?",
+ "¿El cargador incluido es original?",
  "Ya compré mi celular y la funda está dañada, quiero reclamar.",
  "¿Cuánto cuesta reparar mi cargador que falló?",
  "¿Dónde está mi pedido con la funda?",

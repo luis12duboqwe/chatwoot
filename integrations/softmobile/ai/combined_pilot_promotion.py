@@ -16,6 +16,7 @@ from pathlib import Path
 import tempfile
 
 import promotion_budget
+import offline_issue_replay as rapid_replay
 from quality_auditor import _load,_atomic_json
 import autonomous_learning as learner
 import semantic_generalization as semantic
@@ -33,10 +34,10 @@ QA=ROOT/"quality"
 STAGING=QA/"combined-pilot-candidates"
 REVIEW=QA/"combined-pilot-review.json"
 STATUS=QA/"combined-pilot-promotion-status.json"
-REVISION="bundle-static-semantic-financing-directness-20261018-v2"
+REVISION="bundle-static-semantic-financing-directness-20261018-v3"
 DAILY_CAP=1
 EXPECTED_BASE="4dc2814ddb5d3a03c31add202cb004f6369a77b154f2fa5141d5dfb3220ef106"
-KNOWN_SEM_SHA="f988868718e2d13d1107839809b5342618d6f025caa0750811d14f2b443ae02f"
+KNOWN_SEM_SHA="47e4ccc0ac8a85cb62778ac9098e4f33f223f42807bee14741e54d65961bc03e"
 KNOWN_FIN_SHA="972b74f1e4a9126059fb273117178f131a7299e5f24b03c15451d7df5734755e"
 
 def digest(s):
@@ -84,7 +85,7 @@ def evidence(source,combined):
  hold_new=financing_holdout.verify(source=combined)
  if hold_new["total"]!=48 or hold_new["passed"]!=48 or hold_new["passed"]<hold_old["passed"]:
   return {"status":"holdout_regressions","old":hold_old["passed"],"new":hold_new["passed"]}
- # This also enforces 10/10 positive semantic, 14/14 negatives, and full 117 Ruby.
+ # This also enforces 10/10 positive semantic, 15/15 negatives, and full 117 Ruby.
  sem=semantic.gates(source,combined)
  if sem.get("status")!="verified_in_sandbox":
   return {"status":"semantic_or_ruby_regression","semantic":sem}
@@ -95,6 +96,13 @@ def evidence(source,combined):
   return {"status":"inventory_regressions",
           "base_failures":base["failed"],"new_failures":cand["failed"],
           "unsafe_claims":cand["safety_violations"]}
+ # Re-evaluate all stored fictional failure paths, rejecting regressions
+ # that the fixed 72+108+48 sales suites did not yet cover.
+ baseline_replay=rapid_replay.assess(source=source)
+ candidate_replay=rapid_replay.assess(source=combined)
+ extra=rapid_replay.compare(baseline_replay,candidate_replay)
+ if extra["cases_compared"]<50 or extra["new_flags_in_candidate"]:
+  return {"status":"synthetic_backlog_regression","comparison":extra}
  return {"status":"gates_passed","sales_before":before["passed"],"sales_after":after["passed"],
          "total_sales":after["scenarios"],
          "financing_before":before["by_family"]["financing"]["passed"],
@@ -104,6 +112,8 @@ def evidence(source,combined):
          "semantic_positive":sem["positive"],"semantic_negative":sem["negative"],
          "direct_accessory_answer_verification":True,
          "ruby_regressions":sem["ruby_regressions"]["total"],
+         "synthetic_backlog_replayed":extra["cases_compared"],
+         "synthetic_backlog_new_flags":extra["new_flags_in_candidate"],
          "stock_scenarios":cand["scenario_count"],"stock_before":base["passed"],
          "stock_after":cand["passed"],"unsafe_claims":cand["safety_violations"]}
 
