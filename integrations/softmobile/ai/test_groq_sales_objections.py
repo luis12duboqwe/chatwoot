@@ -93,6 +93,32 @@ class ObjectionsTests(unittest.TestCase):
   self.assertEqual(lab.failure_category(PilotError(
       "La IA cambió la capacidad elegida al comparar precios.")),
       "preference_validation_rejected")
+ def test_strict_quality_gate_rejects_keyword_spam(self):
+  before=lambda *a:"Asesor: comparar opciones y modelos, precio y presupuesto, descuento y promoción, cuota, financiación, banco, garantía, estado y revisión, entrega y retiro, parte de pago, valoración, compra disponible a confirmar."
+  from sales_quality_gate import assess
+  self.assertFalse(assess(before(),"payment")["specific"])
+  self.assertFalse(assess(before(),"warranty")["specific"])
+ def test_shared_budget_counts_calls_and_enforces_utc_limit(self):
+  import tempfile
+  from pathlib import Path
+  with tempfile.TemporaryDirectory() as root:
+   root=Path(root)
+   with patch.object(lab.lab,"STATE",root/"shared.json"),patch.object(lab.lab,"LOCK",root/"shared.lock"):
+    for _ in range(2):lab.reserve_shared_call()
+    import json
+    self.assertEqual(json.loads((root/"shared.json").read_text())["api_calls"],2)
+    with patch.object(lab.lab,"MAX_DAILY",2):
+     with self.assertRaises(lab.SharedBudgetExceeded):
+      lab.reserve_shared_call()
+ def test_budget_unavailable_never_calls_groq(self):
+  calls=[]
+  def quota():raise lab.SharedBudgetExceeded("Shared daily cap")
+  with patch.dict(os.environ,{"SOFTMOBILE_AI_ENABLED":"true"}):
+   result=lab.execute(api=lambda *a:calls.append(1),key_provider=lambda:"fixture",budget_hook=quota)
+  self.assertEqual(calls,[])
+  self.assertEqual(result["api_calls"],0)
+  self.assertEqual(result["failure_categories"]["shared_daily_budget_exhausted"],1)
+  self.assertEqual(result["not_run_provider"],19)
  def test_disabled_mode_cannot_access_provider(self):
   touched=[]
   with patch.dict(os.environ,{"SOFTMOBILE_AI_ENABLED":"false"}):
