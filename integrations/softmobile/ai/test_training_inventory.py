@@ -1,4 +1,5 @@
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import training_inventory as t
 
@@ -54,6 +55,28 @@ class TrainingInventoryUnitTests(unittest.TestCase):
  def test_blocks_negative_holds_and_prices(self):
   with self.assertRaises(ValueError):self.inv.hold("SIM-IPH15-128-BLU",-1)
   with self.assertRaises(ValueError):self.inv.reprice("SIM-IPH15-128-BLU",0)
+ def test_many_simulated_buyers_cannot_oversell(self):
+  sku="SIM-IPH14PM-256-BLK"
+  # Thirty-two simultaneous fictional customers compete for three units.
+  def buyer(_):
+   hold=self.inv.hold(sku,1)
+   if hold:self.inv.checkout(hold)
+   return hold
+  with ThreadPoolExecutor(max_workers=16) as pool:
+   results=list(pool.map(buyer,range(32)))
+  won=[x for x in results if x is not None]
+  self.assertEqual(len(won),3)
+  self.assertEqual(len(set(won)),3)
+  self.assertEqual(self.inv.quote("iPhone 14 Pro Max",256,"Negro").status,"out_of_stock")
+  self.assertEqual(sum(x["units"] for x in self.inv.catalog()),20)
+ def test_simulated_holds_freeze_selected_price_even_if_edited(self):
+  sku="SIM-IPH15-128-BLU"
+  before=self.inv.quote("iPhone 15",128,"Azul").record["price_lps"]
+  ticket=self.inv.hold(sku,1)
+  self.inv.reprice(sku,before+1200)
+  paid=self.inv.checkout(ticket)
+  self.assertEqual(paid["total_lps"],before)
+  self.assertEqual(self.inv.quote("iPhone 15",128,"Azul").record["price_lps"],before+1200)
  def test_uses_distinct_state_per_simulated_training_run(self):
   a=t.SimulationInventory();b=t.SimulationInventory()
   a.hold("SIM-IPH12-128-RED")

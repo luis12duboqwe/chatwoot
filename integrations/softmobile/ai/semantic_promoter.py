@@ -51,6 +51,20 @@ def assess(allow_deploy=False,validator=sem.gates,installer=fixer.deploy):
  checks=validator(source,candidate)
  if checks.get("status")!="verified_in_sandbox":
   return {"status":"regression_rejected","validation":checks,"promoted":False}
+ # Independent stock/variant stress suite must not regress when Ruby changes.
+ # Only fictitious records and no-network ephemeral Ruby processes are used.
+ import inventory_quality_lab as stock_quality
+ before_quality=stock_quality.evaluate(source=source)
+ after_quality=stock_quality.evaluate(source=candidate)
+ checks["simulated_inventory_gate"]={
+  "scenarios":after_quality["scenario_count"],
+  "baseline_failures":before_quality["failed"],
+  "candidate_failures":after_quality["failed"],
+  "unsafe_claims":after_quality["safety_violations"]}
+ if (after_quality["scenario_count"]<100 or
+     after_quality["failed"]>before_quality["failed"] or
+     after_quality["safety_violations"]!=0):
+  return {"status":"mock_inventory_regression_rejected","validation":checks,"promoted":False}
  result={"status":"verified_not_deployed","day":day,
          "source_sha256":source_sha,"candidate_sha256":candidate_sha,
          "validation":checks,"promoted":False,"pilot_only":True}

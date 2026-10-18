@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from quality_auditor import _atomic_json
 from training_inventory import SimulationInventory,CATALOG_VERSION,LABEL
@@ -139,6 +140,22 @@ def checkout_regressions():
  before=inv.quote("iPhone 13",128,"Blanco").record["price_lps"]
  inv.reprice("SIM-IPH13-128-WHT",before+250)
  after=inv.quote("iPhone 13",128,"Blanco").record["price_lps"]
+ # Parallel BUYERS operate only on the isolated in-memory fixture.
+ many=SimulationInventory()
+ def buyer(_):
+  key=many.hold("SIM-IPH14PM-256-BLK",1)
+  if key:many.checkout(key)
+  return key
+ with ThreadPoolExecutor(max_workers=16) as pool:
+  successes=[x for x in pool.map(buyer,range(32)) if x]
+ no_oversell=(len(successes)==3
+              and many.quote("iPhone 14 Pro Max",256,"Negro").status=="out_of_stock")
+ held_price=SimulationInventory()
+ ticket=held_price.hold("SIM-IPH15-128-BLU",1)
+ old_cost=16500
+ held_price.reprice("SIM-IPH15-128-BLU",old_cost+200)
+ receipt=held_price.checkout(ticket)
+ settled_price=bool(receipt and receipt["total_lps"]==old_cost)
  return {
   "hold_and_release":bool(token and restored and original.status=="in_stock"
                           and held.status=="out_of_stock" and again.status=="in_stock"),
@@ -146,6 +163,8 @@ def checkout_regressions():
                                   and emptied.status=="out_of_stock" and replay is None and refused is None),
   "price_change_only_in_memory":after==before+250,
   "no_payment_or_customer_data":set(receipt)=={"status","sku","total_lps"},
+  "parallel_buyers_no_oversell":no_oversell,
+  "held_price_immutable":settled_price,
   "simulated_events":len(inv.events())
  }
 
