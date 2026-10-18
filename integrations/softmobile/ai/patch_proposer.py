@@ -90,9 +90,14 @@ def validate_patch(src,proposal):
  return candidate
 
 def syntax_only(candidate,runner=subprocess.run):
- # ruby -c is parse-only, never run candidate via Rails runner.
- try:r=runner(["docker","exec","-i","softmobile-chatwoot-rails-1","ruby","-c"],
-              input=candidate,text=True,capture_output=True,timeout=25)
+ """Ruby parser runs in an ephemeral restricted container, never in Chatwoot."""
+ cmd=["docker","run","-i","--rm","--pull","never","--network","none",
+     "--read-only","--cap-drop","ALL","--security-opt","no-new-privileges",
+     "--pids-limit","48","--memory","200m","--cpus","0.5",
+     "--user","65534:65534","--tmpfs","/tmp:rw,noexec,nosuid,size=8m",
+     "--env","HOME=/tmp","--entrypoint","ruby","chatwoot/chatwoot:v4.18.0-ce",
+     "-c","-"]
+ try:r=runner(cmd,input=candidate,text=True,capture_output=True,timeout=25)
  except (OSError,subprocess.TimeoutExpired):return False
  return r.returncode==0 and "Syntax OK" in r.stdout
 
