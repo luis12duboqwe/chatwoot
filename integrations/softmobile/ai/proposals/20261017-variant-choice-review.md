@@ -6,7 +6,7 @@
 
 ## Origen del parche
 
-Groq produjo cuatro intentos de parche. La revisión automatizada rechazó los que no generaban un cambio de comportamiento, no coincidían con el fragmento exacto o no superaban el análisis de sintaxis Ruby. **Este parche es una alternativa determinística elaborada para revisión tras analizar esos errores; no es código libre de Groq aprobado.**
+Groq produjo cinco intentos de parche; el primero no tenía efecto práctico y los otros cuatro fueron rechazados por los controles de validación. La revisión automatizada rechazó los que no generaban un cambio de comportamiento, no coincidían con el fragmento exacto o no superaban el análisis de sintaxis Ruby. **Este parche es una alternativa determinística elaborada para revisión tras analizar esos errores; no es código libre de Groq aprobado.**
 
 ## Cambio propuesto
 
