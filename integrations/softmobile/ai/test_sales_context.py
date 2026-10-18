@@ -107,6 +107,34 @@ class SuggestionGuardTests(unittest.TestCase):
   revised,blocked=guard.guarded_draft(bad,clean)
   self.assertTrue(blocked)
   self.assertIn("parte de pago",revised["suggested_reply"])
+ def test_off_topic_safe_sounding_draft_is_replaced(self):
+  clean={"message":"¿Aceptan cuotas con tarjeta?",
+         "context":{"model":"Samsung S24 Ultra"}}
+  wrong={"suggested_reply":"La garantía debe confirmarla un asesor antes de comprar.",
+         "human_review":False}
+  result,blocked=guard.guarded_draft(wrong,clean)
+  self.assertTrue(blocked)
+  self.assertTrue(result["human_review"])
+  self.assertIn("cuotas",result["suggested_reply"])
+ def test_generic_keyword_stuffing_is_blocked(self):
+  clean={"message":"¿Cuántas cuotas permiten?","context":{"model":"iPhone 15"}}
+  spam=("Asesor: comparar opciones y modelos, precio y presupuesto, "
+        "descuento y promoción, cuota, financiación, banco, garantía, estado "
+        "y revisión, entrega y retiro, parte de pago, valoración, compra.")
+  result,blocked=guard.guarded_draft(
+   {"suggested_reply":spam,"human_review":False},clean)
+  self.assertTrue(blocked)
+  self.assertTrue(result["human_review"])
+  self.assertNotIn("comparar opciones y modelos",result["suggested_reply"])
+ def test_genuine_specific_safe_response_not_oversanitized(self):
+  clean={"message":"¿Aceptan cuotas con tarjeta?",
+         "context":{"model":"Samsung S24 Ultra"}}
+  good=("Un asesor puede confirmar los bancos participantes, el número de "
+        "cuotas y los requisitos para ese equipo antes de pagar.")
+  answer,blocked=guard.guarded_draft(
+   {"suggested_reply":good,"human_review":True},clean)
+  self.assertFalse(blocked)
+  self.assertEqual(answer["suggested_reply"],good)
  def test_reject_invalid_shape(self):
   with self.assertRaises(ValueError):guard.guarded_draft({"human_review":True})
 
