@@ -78,7 +78,7 @@ class SuggestionGuardTests(unittest.TestCase):
      {"suggested_reply":question,"human_review":False},clean)
     self.assertTrue(blocked)
     self.assertTrue(res["human_review"])
-    self.assertEqual(res["suggested_reply"],guard.FALLBACK)
+    self.assertEqual(res["suggested_reply"],guard._topic_fallback(clean))
  def test_nonrepetitive_follow_up_is_allowed(self):
   clean={"message":"Quiero el iPhone 15 Pro de 256GB azul",
     "context":{"model":"iPhone 15 Pro","storage_gb":"256","color_options":"azul"}}
@@ -86,6 +86,27 @@ class SuggestionGuardTests(unittest.TestCase):
    {"suggested_reply":"¿Lo preferís retirar o consultar envío?",
     "human_review":True},clean)
   self.assertFalse(blocked)
+ def test_price_objetion_uses_specific_fallback(self):
+  for buyer,term in (("¿Qué precio tiene?","precio"),
+                     ("¿Aceptan 12 cuotas?","cuotas"),
+                     ("¿Cuánto tarda el envío?","entrega"),
+                     ("¿Qué garantía tiene?","garantía"),
+                     ("¿Reciben mi equipo como parte de pago?","parte de pago"),
+                     ("¿Puedo probarlo?","probarla")):
+   with self.subTest(buyer=buyer):
+    result,blocked=guard.guarded_draft({"suggested_reply":"Está disponible y vale L12,000",
+       "human_review":False},{"message":buyer,"context":{"model":"iPhone 15"}})
+    self.assertTrue(blocked)
+    self.assertTrue(result["human_review"])
+    self.assertIn(term,result["suggested_reply"].lower())
+    self.assertNotIn("L12,000",result["suggested_reply"])
+ def test_trade_in_reply_without_trade_in_content_is_corrected(self):
+  clean={"message":"¿Reciben mi teléfono como parte de pago?",
+    "context":{"model":"iPhone 15"}}
+  bad={"suggested_reply":"Un asesor puede revisar opciones.","human_review":True}
+  revised,blocked=guard.guarded_draft(bad,clean)
+  self.assertTrue(blocked)
+  self.assertIn("parte de pago",revised["suggested_reply"])
  def test_reject_invalid_shape(self):
   with self.assertRaises(ValueError):guard.guarded_draft({"human_review":True})
 
