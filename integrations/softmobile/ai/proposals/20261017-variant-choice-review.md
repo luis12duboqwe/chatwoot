@@ -18,6 +18,8 @@ Se preparó una **segunda versión determinística, escrita para revisión**, qu
 | Errores previos corregidos | — | **7** |
 | Regresiones introducidas | — | **0** |
 
+También se ejecutaron **150 variaciones sintéticas independientes de entrenamiento, sin ejemplos de clientes reales**. El bot actual respondió bien **60/150** y la segunda propuesta **150/150**, corrigiendo 90 fallos sin introducir regresiones en ese conjunto.
+
 Además, la propuesta superó **117/117 pruebas comerciales Ruby**, distribuidas en 57 del motor, 5 regresiones básicas, 7 históricas, 20 recorridos, 11 del piloto, 2 de pagos y 15 escenarios futuros.
 
 ## Aislamiento y seguridad
