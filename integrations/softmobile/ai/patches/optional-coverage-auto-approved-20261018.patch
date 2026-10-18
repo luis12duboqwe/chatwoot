@@ -1,0 +1,17 @@
+--- SoftMobile pilot before verified optional-coverage change
++++ SoftMobile pilot after verified optional-coverage change
+@@ -649,6 +649,14 @@
+                 note:'TIEMPO DE RESPUESTA: un asesor debe verificar plazo y alternativas. No prometer horas ni tiempos de contacto.',
+                 needs_human:true,intent: :advisor_eta,tag:'plazo_asesor_pendiente'}
+       end
++      if (t.match?(/\b(?:seguro|proteccion|cobertura)\b.{0,50}\b(?:adicional|pantalla|caidas|accidentes|accidental)\b/) ||
++          t.match?(/\b(?:garantia|cobertura)\s+extendida\b/) ||
++          t.match?(/\b(?:extender|ampliar)\b.{0,45}\bgarantia\b/)) &&
++          !t.match?(/\b(?:ya compre|lo compre|se dano|no funciona|se quebro|tengo un reclamo|mi equipo fallo)\b/)
++        return {reply:"No tengo confirmado que haya seguro adicional, cobertura contra daños accidentales o garantía extendida para esa unidad. Un asesor revisará si existe alguna opción, su costo y sus condiciones antes de que decidás comprar.",
++                note:'COBERTURA OPCIONAL: verificar proveedor, costo, condiciones y exclusiones; no vender ni prometer un seguro o extensión inexistente.',
++                needs_human:true,intent: :optional_coverage,tag:'cobertura_adicional_por_confirmar'}
++      end
+       # SM_REPAIR_LAB_SAFE_RULES_END
+ 
+       if ambiguous_model_choice?(raw) && [:stock,:price,:other,:comparison].include?(intent_type)
