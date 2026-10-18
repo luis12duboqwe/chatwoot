@@ -856,3 +856,43 @@ Re-executed seven synthetic Groq API prompts with the final code: **7/7**
 structured responses met preference and handoff requirements; two claims
 were blocked. This is a small synthetic sample, not a success rate in
 commercial production. Private aggregate results only were persisted.
+
+## Prueba multipaso: Groq vendedor privado (18 oct 2026, UTC)
+
+Esta etapa evaluó CUATRO conversaciones ficticias completas de TRES mensajes
+cada una, conectadas a la API real de Groq, sin Chatwoot ni WhatsApp. Los
+escenarios fueron: alternativa por falta de una variante y retiro en Choloma;
+comparación de precios sin perder el teléfono elegido y pregunta de garantía;
+cambio de opinión y consulta para probar una unidad antes de pagar; y
+comparación ambigua que termina en una selección y consulta de entrega.
+
+Se detectó antes de llamar a la API que `preference_snapshot` perdía la
+variante seleccionada al procesar frases como «Si no hay 512GB negro,
+mejor 256GB azul» antes de una pregunta logística. Se añadió
+`journey_memory.py`: memoria determinística y minimizada de hasta cuatro
+mensajes previos; evita sustituir la elección por la variante de una
+pregunta comparativa y elimina elecciones ambiguas. Sigue descartando
+mensajes con identificadores personales o información de pagos.
+
+Primera prueba real con Groq: 10/12 turnos superaron todos los controles,
+con cero errores de memoria, cuatro afirmaciones no verificadas interceptadas
+y dos fallos de derivación humana (retiro en tienda y prueba previa).
+Se amplió el enrutamiento de temas sensibles de `groq_pilot.py` para forzar
+`human_review=true` en retiro, prueba antes de pagar y entrega.
+
+Segunda ejecución real (mismos escenarios): **12/12 turnos aprobados**,
+cero errores de memoria, tres afirmaciones comerciales interceptadas y
+derivación humana correcta en los turnos que la requerían. Se ejecutaron
+**188/188 pruebas Python locales**. El script conserva únicamente métricas
+por ID ficticio y nunca redactados originales de Groq.
+
+Fuentes: `groq_sales_journeys.py`, `test_groq_sales_journeys.py`,
+`journey_memory.py` y `test_variant_preference.py`.
+El CI ejecuta pruebas unitarias sin API keys y NO repite las solicitudes
+reales a Groq.
+
+La **IA aún no envía respuestas públicas**; sólo funciona el copilot que
+escribe notas internas de asesores en la conversación piloto autorizada.
+No hay transacciones, inventario integrado, reservas, WhatsApps a clientes
+ni despliegue nuevo del motor Ruby. Los resultados corresponden a una
+muestra sintética reducida, no a efectividad real de cierre de ventas.
