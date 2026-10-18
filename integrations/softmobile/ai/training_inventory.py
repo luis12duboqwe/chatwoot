@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import re
 import unicodedata
+from threading import RLock
 
 LABEL="SIMULACIÓN / INVENTARIO FICTICIO — NO OFRECER A CLIENTES"
 CATALOG_VERSION="training-fixture-20261018-v1"
@@ -59,53 +60,61 @@ class Quote:
 
 class SimulationInventory:
  def __init__(self,records=None):
+  self._lock=RLock()
   self._items={r["sku"]:deepcopy(r) for r in validate(deepcopy(SEED if records is None else records))}
   self._holds={}
   self._counter=0
   self._events=[]
  def catalog(self):
-  return deepcopy(list(self._items.values()))
+  with self._lock:
+    return deepcopy(list(self._items.values()))
  def quote(self,model,capacity_gb=None,color=None):
-  if not model or not isinstance(model,str):return Quote("missing_model",None,[])
-  if capacity_gb is not None and (type(capacity_gb) is not int or capacity_gb<=0):
-   raise ValueError("Invalid requested capacity")
-  key=normalize(model);shade=normalize(color) if color else None
-  matching=[v for v in self._items.values() if normalize(v["model"])==key
-            and (capacity_gb is None or v["capacity_gb"]==capacity_gb)]
-  if not matching:return Quote("not_found",None,[])
-  chosen=[v for v in matching if shade is None or normalize(v["color"])==shade]
-  available=[v for v in chosen if v["units"]>0]
-  if available:return Quote("in_stock",deepcopy(available[0]),deepcopy([v for v in matching if v["units"]>0 and v["sku"]!=available[0]["sku"]]))
-  # Never present an out-of-stock color as available.
-  others=[v for v in matching if v["units"]>0]
-  return Quote("out_of_stock",deepcopy(chosen[0]) if chosen else None,deepcopy(others))
+  with self._lock:
+    if not model or not isinstance(model,str):return Quote("missing_model",None,[])
+    if capacity_gb is not None and (type(capacity_gb) is not int or capacity_gb<=0):
+     raise ValueError("Invalid requested capacity")
+    key=normalize(model);shade=normalize(color) if color else None
+    matching=[v for v in self._items.values() if normalize(v["model"])==key
+              and (capacity_gb is None or v["capacity_gb"]==capacity_gb)]
+    if not matching:return Quote("not_found",None,[])
+    chosen=[v for v in matching if shade is None or normalize(v["color"])==shade]
+    available=[v for v in chosen if v["units"]>0]
+    if available:return Quote("in_stock",deepcopy(available[0]),deepcopy([v for v in matching if v["units"]>0 and v["sku"]!=available[0]["sku"]]))
+    # Never present an out-of-stock color as available.
+    others=[v for v in matching if v["units"]>0]
+    return Quote("out_of_stock",deepcopy(chosen[0]) if chosen else None,deepcopy(others))
  def hold(self,sku,quantity=1):
-  if type(quantity) is not int or quantity<=0 or quantity>10:raise ValueError("Invalid quantity")
-  record=self._items.get(sku)
-  if not record or record["units"]<quantity:return None
-  record["units"]-=quantity
-  self._counter+=1
-  token="LAB-HOLD-"+str(self._counter).zfill(5)
-  self._holds[token]={"sku":sku,"quantity":quantity,"unit_price":record["price_lps"]}
-  self._events.append({"action":"hold","sku":sku,"quantity":quantity})
-  return token
+  with self._lock:
+    if type(quantity) is not int or quantity<=0 or quantity>10:raise ValueError("Invalid quantity")
+    record=self._items.get(sku)
+    if not record or record["units"]<quantity:return None
+    record["units"]-=quantity
+    self._counter+=1
+    token="LAB-HOLD-"+str(self._counter).zfill(5)
+    self._holds[token]={"sku":sku,"quantity":quantity,"unit_price":record["price_lps"]}
+    self._events.append({"action":"hold","sku":sku,"quantity":quantity})
+    return token
  def release(self,token):
-  hold=self._holds.pop(token,None)
-  if not hold:return False
-  self._items[hold["sku"]]["units"]+=hold["quantity"]
-  self._events.append({"action":"release","sku":hold["sku"],"quantity":hold["quantity"]})
-  return True
+  with self._lock:
+    hold=self._holds.pop(token,None)
+    if not hold:return False
+    self._items[hold["sku"]]["units"]+=hold["quantity"]
+    self._events.append({"action":"release","sku":hold["sku"],"quantity":hold["quantity"]})
+    return True
  def checkout(self,token):
-  # Training-only: never captures payment, PII, an address or a real order.
-  hold=self._holds.pop(token,None)
-  if not hold:return None
-  self._events.append({"action":"simulated_checkout","sku":hold["sku"],"quantity":hold["quantity"]})
-  return {"status":"simulated_only","sku":hold["sku"],"total_lps":hold["quantity"]*hold["unit_price"]}
+  with self._lock:
+    # Training-only: never captures payment, PII, an address or a real order.
+    hold=self._holds.pop(token,None)
+    if not hold:return None
+    self._events.append({"action":"simulated_checkout","sku":hold["sku"],"quantity":hold["quantity"]})
+    return {"status":"simulated_only","sku":hold["sku"],"total_lps":hold["quantity"]*hold["unit_price"]}
  def reprice(self,sku,new_lps):
-  if type(new_lps) is not int or not 1<=new_lps<=100000:raise ValueError("Invalid price")
-  if sku not in self._items:raise ValueError("Unknown fictitious SKU")
-  old=self._items[sku]["price_lps"]
-  self._items[sku]["price_lps"]=new_lps
-  self._events.append({"action":"simulated_price_change","sku":sku,"old_lps":old,"new_lps":new_lps})
+  with self._lock:
+    if type(new_lps) is not int or not 1<=new_lps<=100000:raise ValueError("Invalid price")
+    if sku not in self._items:raise ValueError("Unknown fictitious SKU")
+    old=self._items[sku]["price_lps"]
+    self._items[sku]["price_lps"]=new_lps
+    self._events.append({"action":"simulated_price_change","sku":sku,"old_lps":old,"new_lps":new_lps})
  def events(self):
-  return deepcopy(self._events)
+  with self._lock:
+    return deepcopy(self._events)

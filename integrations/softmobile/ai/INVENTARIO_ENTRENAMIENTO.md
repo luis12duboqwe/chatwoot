@@ -71,3 +71,45 @@ Ambos pueden detenerse sin afectar Chatwoot:
 ```bash
 systemctl disable --now softmobile-inventory-training.timer softmobile-inventory-ai.timer
 ```
+
+## Ampliación: auditoría de 108 conversaciones y 32 compradores simultáneos
+
+`inventory_quality_lab.py` compara **108 recorridos generados de forma
+determinista** con el motor Ruby REAL ejecutado en contenedores temporales
+sin red. Un oráculo independiente conoce la intención del comprador
+simulado y compara modelo, capacidad, color, disponibilidad y omisiones.
+La puntuación de calidad nunca se calcula a partir de la opinión de Ruby
+sobre sí mismo. El informe se guarda en
+`quality/training-inventory-quality-report.json`.
+
+Las consultas cubren 9 familias (12 casos por familia): modelo específico,
+pregunta de existencia, aclaraciones sucesivas, cambio de color, contexto de
+precio, contexto de inventario, cambio de modelo, falta de color y capacidad
+no vendida. Si una prueba falla, el laboratorio registra una incidencia
+**solo para revisión** en `quality/training-inventory-review-issues.json`.
+No autoriza cambios automáticos de producción.
+
+El inventario artificial ahora protege apartados, liberaciones, checkout y
+cambios de precio con un bloqueo en memoria. La prueba paralela simula
+**32 compradores** compitiendo por **tres unidades**: nunca se vende una
+cuarta. Si el precio ficticio cambia DESPUÉS de un apartado, la operación
+de entrenamiento conserva el valor del apartado original.
+
+El promotor `semantic_promoter.py` ahora exige, además de sus pruebas Ruby,
+**no empeorar** en los 108 escenarios de inventario simulados y registrar
+**cero afirmaciones no verificadas** antes de plantear un despliegue
+piloto. Una prueba futura del promotor cumplió todos los criterios SIN
+instalar código; la promoción real sigue limitada por las salvaguardas
+del ciclo automático.
+
+Para ejecutar/revisar:
+```bash
+python3 inventory_quality_lab.py --run
+python3 inventory_quality_lab.py --status
+python3 -m unittest -q test_inventory_quality_lab
+systemctl status softmobile-inventory-quality.timer
+```
+
+`softmobile-inventory-quality.timer` ejecuta estas comprobaciones cada
+dos horas al minuto 39 UTC. La programación conserva el aislamiento del
+piloto y NO habilita la venta real del inventario ficticio.
