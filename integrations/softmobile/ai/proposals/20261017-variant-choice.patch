@@ -1,12 +1,17 @@
 --- a/sales-bot-v2.rb
 +++ b/sales-bot-v2.rb
-@@ -493,7 +493,8 @@
+@@ -493,7 +493,13 @@
          choices=color_options(variant_str)
          if choices.any?
            data[:color_options]=choices
 -          data[:color]=choices.first
-+          is_fallback=choices.length>1 && nt.match?(/\b(?:si no hay|si no tienen|si no|mejor|prefiero)\b/)
-+          data[:color]=is_fallback ? choices.last : choices.first
++          selection=choices.first
++          if choices.length>1 && nt.match?(/\bsi no\b/)
++            tail=nt.split(/\b(?:mejor|prefiero|me gustaria|puedo cambiar a|puedo ver|puedo comprar|me sirve)\b/).last
++            selection=color_options(tail).first if tail && tail!=nt
++            selection=choices.last if nt.scan(/\bsi no hay\b/).length>1
++          end
++          data[:color]=selection
          end
          mentioned=cities_in_message(str)
          found_city=mentioned.last
