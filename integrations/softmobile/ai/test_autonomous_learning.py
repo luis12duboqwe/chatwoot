@@ -58,7 +58,15 @@ class AutoLearningTests(unittest.TestCase):
     self.assertEqual(rule["family"],"extra_accessory")
     self.assertEqual(rule["trigger"],a.normalized(scenario["messages"][-1]))
  def test_compiler_is_data_only_and_idempotent(self):
-  source=a.BOT.read_text()
+  source=("module SoftMobileSales\n"
+          "  PILOT_CONVERSATION_ID = 3\n"
+          "  INBOX_ID = 2\n"
+          "  AUTO_REPLY_LIMIT = 1\n"
+          "  def self.plan(t)\n"
+          "      # SM_REPAIR_LAB_SAFE_RULES_END\n"
+          "  end\n"
+          "end\n"
+          "if ENV['SM_MODE']=='test'\n")
   row,scenario,families=a.candidate_issues([ISSUE],a.empty_pack())[0]
   rule={"family":families[0],"trigger":a.normalized(scenario["messages"][-1]),
         "source_issue":row["id"]}
