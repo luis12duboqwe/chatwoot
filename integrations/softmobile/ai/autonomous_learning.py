@@ -141,6 +141,16 @@ def compile_source(source,pack):
         '      end',
         '      # SM_LEARNED_DIALOGUE_END'])
  body="\n".join(parts)+"\n"
+ # An already approved static generalization must survive future learning.
+ # Never carry forward unreviewed Ruby: its source must exactly match our
+ # audited built-in pattern or promotion fails closed.
+ if "SM_GENERALIZED_EXTRA_ACCESSORY_BEGIN" in source or "SM_GENERALIZED_EXTRA_ACCESSORY_END" in source:
+  from semantic_generalization import RUBY_RULE,SIGN,END as SEM_END
+  if source.count(SIGN)!=1 or source.count(SEM_END)!=1 or source.count(RUBY_RULE)!=1:
+   raise ValueError("Generalization source drift")
+  if not any(r["family"]=="extra_accessory" for r in pack["rules"]):
+   raise ValueError("Generalization without validated learned family")
+  body=body.replace(END,RUBY_RULE+END,1)
  if source.count(BEG):
   if source.count(BEG)!=1 or source.count(END)!=1:raise ValueError("Unsafe learning markers")
   before,tail=source.split(BEG,1)

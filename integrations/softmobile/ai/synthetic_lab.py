@@ -154,6 +154,8 @@ def validate_grade(obj):
 
 def api_json(key,system,user,schema,schema_name,opener=request.urlopen):
  if not key:raise RuntimeError("Missing API credential")
+ import provider_cooldown as cooldown
+ if opener is request.urlopen:cooldown.enforce()
  data={"model":os.getenv("SOFTMOBILE_AI_MODEL",MODEL),
     "messages":[{"role":"system","content":system},{"role":"user","content":user}],
     "temperature":0.7 if schema_name=="synth_cases" else 0,
@@ -169,6 +171,8 @@ def api_json(key,system,user,schema,schema_name,opener=request.urlopen):
    res=json.loads(response.read(50000))
   return json.loads(res["choices"][0]["message"]["content"])
  except (error.HTTPError,error.URLError,ValueError,KeyError,IndexError,TimeoutError,TypeError) as exc:
+  if isinstance(exc,error.HTTPError) and exc.code==429 and opener is request.urlopen:
+   cooldown.register_http_429(exc.headers)
   raise RuntimeError("AI request failed safely") from exc
 
 def simulate(scenarios,runner=subprocess.run,source=BOT,partial=False):
