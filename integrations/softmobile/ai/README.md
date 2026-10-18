@@ -531,3 +531,39 @@ Disabling *just* the code-repair scheduler:
 
 PR remains a draft pending independent review, CI status and real handset
 WhatsApp receive/send verification.
+
+
+## GitHub draft patch proposals (2026-10-17 local / 2026-10-18 UTC)
+
+New patch_proposer.py consumes ONLY synthetic conversational defects,
+asks Groq for a JSON text replacement in the restricted Ruby context_from
+method, statically checks scope, size, dangerous operations and ineffective
+changes, then checks syntax with ruby -c (without running the bot). It stores
+proposal diffs/metadata as private files with mode 0600. The generator has
+NO CODE EXECUTION, NO LIVE DEPLOYMENT and NO Chatwoot/WhatsApp writes.
+Schedule: softmobile-patch-proposer.timer runs at 02:25,08:25,14:25,20:25
+UTC, shares the synthetic lab's exclusive lock and Groq call budget, and
+limits itself to four attempts per UTC day.
+
+Live Groq patch-generation test: five candidate code proposals were rejected
+(one semantically ineffective and four later rejected by static or syntax
+checks). The safe validator did not apply any of them to sales-bot-v2.rb.
+A separate deterministic, reviewer-authored fallback for the same previously
+detected customer color/capacity bug passed Ruby syntax checking; it was
+staged as a text-only diff, NOT executed or behaviorally validated.
+
+Draft GitHub code-review proposal:
+https://github.com/luis12duboqwe/chatwoot/pull/3
+The PR contains an inert .patch file and risk/test notes only; its
+base is the feature branch of the original pilot PR, not production.
+There is no automated GitHub publishing credential on the VPS proven
+available in this workflow: publishing this proposal was performed via
+the existing GitHub connector. Future VPS runs save local review files
+but do not autonomously publish GitHub pull requests.
+
+Required before any production use: review the proposed algorithm,
+exercise actual Ruby behavior in a restricted test environment, run all
+existing 117 commercial cases plus the new regression journey, check
+false positives, and approve a separately gated pilot rollout. Do not
+merge/execute untrusted diffs automatically. The existing bounded
+repair scheduler continues independently.
