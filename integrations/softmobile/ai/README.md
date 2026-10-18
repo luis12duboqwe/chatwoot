@@ -749,3 +749,41 @@ de Chatwoot cuenta 2, bandeja 2, conversación 3 siguen verificados.
 
 Los cambios de código de alcance desconocido continúan requiriendo
 revisión humana y no pueden ser instalados por el automejorador de reglas.
+
+## Groq private copilot: bounded memory + claim guard (18 October 2026 UTC)
+
+This iteration improves the *commercial assistant*, not the source-patch lab.
+The existing `chatwoot_ai_bridge.py` remains exclusively scoped to Chatwoot
+account 2 / inbox 2 / pilot conversation 3; it creates **PRIVATE** internal
+agent notes only, never public replies.
+
+- Incoming source now retrieves up to four previous **public incoming buyer
+  messages** in the same verified conversation. It does not retrieve private
+  notes or other inboxes. Older messages longer than 420 chars or containing
+  attachments are never considered for memory.
+- `sales_context.py` never forwards those previous messages verbatim. It
+  derives only allowlisted model, storage, one unambiguous color and known city.
+  Messages containing email, phone, bank/payment details, precise address,
+  credentials or order numbers are discarded before context extraction.
+- `suggestion_guard.py` blocks high-confidence unsupported claims (exact
+  price/amount, delivery time, reserved stock, guarantee of approval,
+  included accessories or insurance, requests for sensitive credentials).
+  A risky Groq suggestion is replaced with a generic *private* assistant
+  draft requiring a human, not sent to the buyer.
+- The newest buyer message is still independently checked by the existing
+  sensitive-content filter; the bridge skips stale/short/private/multimedia
+  messages and limits usage to 30 suggestions per UTC day.
+- The new context reader was verified as valid Ruby syntax and performed a
+  **read-only** Rails query on the authorized pilot. No actual customer text
+  or credentials were printed or transferred to this report.
+
+Tests: **162/162** local Python tests pass, including nine new privacy/claim
+cases and bridge integration tests. Two **fictitious** live Groq API probes
+passed: a 128GB black -> 256GB blue customer correction retained the right
+new capacity/color, and a warranty+accessories answer triggered the safety
+fallback. Neither probe wrote a Chatwoot message.
+
+This change intentionally **does not enable Groq to send public customer
+messages**. The existing rule-based public bot and its 117-case Ruby test
+suite remain separate; PR #4 has 42 independent dialogue scenarios and is
+still pending independent human review.
