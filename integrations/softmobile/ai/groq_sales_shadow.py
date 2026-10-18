@@ -51,7 +51,7 @@ def evaluate(api=suggest,key_provider=stored_key):
        "human_handoff":False,"blocked_claim":False}
   try:
    response=api(clean,key)
-   candidate,blocked=guarded_draft(response)
+   candidate,blocked=guarded_draft(response,clean)
    match=(expected["storage_gb"] is None or response["storage_gb"]==expected["storage_gb"])
    if expected["color"] is not None:
     match=match and expected["color"] in [str(x).lower() for x in response["color_options"]]
