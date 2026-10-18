@@ -787,3 +787,53 @@ This change intentionally **does not enable Groq to send public customer
 messages**. The existing rule-based public bot and its 117-case Ruby test
 suite remain separate; PR #4 has 42 independent dialogue scenarios and is
 still pending independent human review.
+
+## Groq vendedor — interpretación de opciones y evaluación sombra (18 Oct 2026 UTC)
+
+El piloto sigue **sólo en notas privadas** para el asesor. No se activó el
+envío público por Groq, no se cambió el código Ruby del bot, no se modificó
+inventario ni se realizaron ventas o mensajes reales.
+
+### Preferencias de compra
+- `variant_preference.py` distingue preferencia explícita de comparaciones,
+  una alternativa condicional, un rechazo y preguntas ambiguas. No asume que
+  el **último producto mencionado** siempre es el elegido.
+- `groq_pilot.py` transmite `selected_preference` calculado sobre el mensaje
+  ficticio/filtrado y exige coherencia de color y capacidad cuando hay una
+  selección clara. Si hay dos variantes y ninguna elección unívoca, fuerza
+  revisión humana y nunca elige una sin confirmación.
+- Se mejoró el prompt para no confundir una comparación de precios con una
+  nueva elección del comprador.
+
+### Calidad de sugerencias
+- `suggestion_guard.py` también rechaza afirmaciones no comprobadas de
+  disponibilidad, reserva, regalos, cargadores, seguro, entrega inmediata
+  o aprobación bancaria. Su respuesta de respaldo ya no vuelve a
+  preguntar qué modelo busca el cliente: solicita verificación de los datos
+  comerciales pendientes sin inventar políticas.
+
+### Pruebas con Groq REAL usando datos ficticios (sin clientes)
+Se ejecutó `groq_sales_shadow.py --run` dos veces con **siete**
+consultas fijas: cambio de capacidad/color, preferencia frente a comparación,
+alternativa si no hay stock, ambigüedad, garantía con accesorios, plazo de
+entrega e intención nueva.
+- Primera evaluación: **4/7** propuestas estructuradas válidas y
+  controladas; 3 fueron rechazadas, 1 sugerencia bloqueada por el filtro.
+- Tras añadir selección explícita determinística a la entrada:
+  **7/7** propuestas válidas, **7/7** preferencias o escalaciones esperadas,
+  2 sugerencias reemplazadas por respuesta interna prudente.
+- Un resultado bueno en 7 escenarios no implica una tasa real de éxito
+  ni autoriza respuestas públicas.
+- `groq_sales_shadow.py` guarda **solo indicadores fijos y agregados** de
+  los casos ficticios; no guarda las salidas redactadas del proveedor ni
+  texto de clientes reales, ni realiza escrituras a Chatwoot.
+- `test_variant_preference.py` y `test_groq_sales_shadow.py` son pruebas
+  independientes y reproducibles con mocks; **173/173** pruebas Python
+  locales aprobadas antes de sincronizar la rama con GitHub.
+- Las pruebas CI sólo verifican módulos offline: no acceden a Groq,
+  Chatwoot ni al VPS y no validan WhatsApp real.
+
+Pendiente: ampliar la muestra independiente de conversaciones comerciales,
+verificar la entrega real del canal piloto, conectar el inventario con
+control de existencias y demostrar una mejora medible antes de habilitar
+autorespuestas en producción.
