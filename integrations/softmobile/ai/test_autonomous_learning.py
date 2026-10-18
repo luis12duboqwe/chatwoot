@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 import tempfile
 import unittest
+from datetime import datetime,timezone
 
 import autonomous_learning as a
 
@@ -23,6 +24,27 @@ ISSUE={
   {"buyer":"Me gustaría confirmar el paquete","bot":"Hay que confirmar con un asesor"}
  ]}
 class AutoLearningTests(unittest.TestCase):
+ def test_daily_deployment_counter_ignores_missing_promoted_field(self):
+  with tempfile.TemporaryDirectory() as temp:
+   root=Path(temp)
+   first={"day":datetime.now(timezone.utc).date().isoformat(),"status":"pilot_deployed_pending_retest","promoted":True}
+   later={"day":datetime.now(timezone.utc).date().isoformat(),"status":"daily_deployment_cap"}
+   (root/"history.json").write_text(json.dumps([first,later]))
+   (root/"history.json").chmod(0o600)
+   with patch.object(a,"HISTORY",root/"history.json"):
+    outcome=a.evaluate(max_deploy=True)
+   self.assertEqual(outcome["status"],"daily_deployment_cap")
+  with tempfile.TemporaryDirectory() as temp:
+   root=Path(temp)
+   (root/"history.json").write_text(json.dumps([
+    {"day":"2000-01-01","status":"daily_deployment_cap"},
+    {"day":"2000-01-01","promoted":False}]))
+   (root/"history.json").chmod(0o600)
+   with patch.object(a,"HISTORY",root/"history.json"),patch.object(a,"STORE",root/"policy.json"),patch.object(a.lab,"ISSUES",root/"issues.json"):
+    (root/"issues.json").write_text("[]")
+    (root/"issues.json").chmod(0o600)
+    outcome=a.evaluate(max_deploy=True)
+   self.assertEqual(outcome["status"],"no_eligible_new_issue")
  def test_unsafe_policy_cannot_change_pilot(self):
   with self.assertRaises(ValueError):
    a.validate_pack({"version":1,"pilot_conversation_id":4,"rules":[]})
