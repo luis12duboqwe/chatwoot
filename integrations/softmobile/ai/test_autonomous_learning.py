@@ -102,6 +102,29 @@ class AutoLearningTests(unittest.TestCase):
   self.assertIn("AUTO_REPLY_LIMIT = 1",changed)
   self.assertNotIn("eval(",changed)
   self.assertNotIn("sendText",a.compile_source.__code__.co_names)
+ def test_future_learning_preserves_audited_semantic_block(self):
+  import semantic_generalization as sem
+  original=("module SoftMobileSales\n"
+          "  PILOT_CONVERSATION_ID = 3\n"
+          "  INBOX_ID = 2\n"
+          "  AUTO_REPLY_LIMIT = 1\n"
+          "  def self.plan(t)\n"
+          "      # SM_REPAIR_LAB_SAFE_RULES_END\n"
+          "  end\n"
+          "end\n"
+          "if ENV['SM_MODE']=='test'\n")
+  rule={"family":"extra_accessory",
+        "trigger":a.normalized(ISSUE["scenario"]["messages"][1]),
+        "source_issue":ISSUE["id"]}
+  pack={**a.empty_pack(),"rules":[rule]}
+  first=a.compile_source(original,pack)
+  staged=sem.build(first,pack)
+  self.assertEqual(a.compile_source(staged,pack),staged)
+  self.assertEqual(staged.count(sem.SIGN),1)
+  scrubbed=a.compile_source(staged.replace(sem.RUBY_RULE,"malicious ruby\n"),pack)
+  self.assertNotIn("malicious ruby",scrubbed)
+  self.assertNotIn(sem.SIGN,scrubbed)
+
  def test_exact_triggers_do_not_accept_broad_patterns(self):
   with self.assertRaises(ValueError):
    a.safe_rule({"family":"extra_accessory","trigger":"precio .* accesorios","source_issue":ISSUE["id"]})
