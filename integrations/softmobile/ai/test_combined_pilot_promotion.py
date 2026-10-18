@@ -43,7 +43,7 @@ class BundledPromotionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as temp:
    live,candidate,stage,load=self.fixtures(temp,tamper=True)
    install=Mock()
-   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate):
+   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),patch.object(p,"independent_quality_approved",return_value=True):
     out=p.promote(installer=install)
    self.assertEqual(out["status"],"staged_candidate_tampered")
    install.assert_not_called()
@@ -53,7 +53,7 @@ class BundledPromotionTests(unittest.TestCase):
    live,candidate,stage,load=self.fixtures(temp)
    install=Mock()
    def badcheck(*args):return {"status":"mock_inventory_regression_rejected"}
-   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate):
+   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),patch.object(p,"independent_quality_approved",return_value=True):
     out=p.promote(installer=install,validator=badcheck)
    self.assertEqual(out["status"],"independent_gates_failed")
    install.assert_not_called()
@@ -65,7 +65,7 @@ class BundledPromotionTests(unittest.TestCase):
     return {"status":"deployed","backup_name":"fixture.bak"}
    checks=Mock(return_value={"status":"gates_passed","tested":72})
    written=[]
-   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),        patch.object(p,"_atomic_json",side_effect=lambda path,value:written.append((path,value))):
+   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),        patch.object(p,"_atomic_json",side_effect=lambda path,value:written.append((path,value))),patch.object(p,"independent_quality_approved",return_value=True):
     out=p.promote(installer=install,validator=checks)
    self.assertEqual(out["status"],"pilot_deployed_pending_retest")
    self.assertTrue(out["promoted"])
@@ -82,11 +82,19 @@ class BundledPromotionTests(unittest.TestCase):
    def restore(previous,expected):
     self.assertEqual(live.read_text(),expected)
     live.write_text(previous)
-   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),        patch.object(p,"restore_before_going_live",side_effect=restore):
+   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),        patch.object(p,"restore_before_going_live",side_effect=restore),patch.object(p,"independent_quality_approved",return_value=True):
     out=p.promote(installer=install,validator=lambda *_:next(results))
    self.assertEqual(out["status"],"postdeploy_failed_rolled_back")
    self.assertFalse(out["promoted"])
    self.assertEqual(live.read_text(),"safe original")
+ def test_missing_independent_quality_approval_blocks_install(self):
+  with tempfile.TemporaryDirectory() as temp:
+   live,candidate,stage,load=self.fixtures(temp)
+   installer=Mock()
+   with patch.object(p.learner,"BOT",live),patch.object(p,"STAGING",stage),        patch.object(p,"_load",side_effect=load),patch.object(p,"prepare",return_value=candidate),        patch.object(p,"independent_quality_approved",return_value=False):
+    res=p.promote(installer=installer)
+   self.assertEqual(res["status"],"independent_ai_quality_pending")
+   installer.assert_not_called()
  def test_promotion_time_guard_is_explicitly_one_per_day(self):
   self.assertEqual(p.DAILY_CAP,1)
   self.assertFalse(p.run.__defaults__[0])

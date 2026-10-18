@@ -92,3 +92,59 @@ El cumplimiento de esta fase de capacitación tampoco demuestra que
 Groq atienda consistentemente ventas reales. Para abrir la venta
 automatizada faltan una fuente de inventario real, confirmación de
 ofertas y garantía, supervisión en Chatwoot y autorización de alcance.
+
+## Revisión de calidad V2 — 18 oct 2026, 19:45 UTC (prevalece sobre V1)
+
+Una auditoría independiente de Groq señaló que la frase anterior sobre
+agregar una funda gratis era demasiado evasiva. Se corrigió con una
+respuesta más directa, igualmente limitada por la ausencia de
+promociones verificadas:
+
+> «Por ahora no puedo incluirte la funda como accesorio gratis, porque
+> no tengo confirmada esa regalía para el equipo. Un asesor puede
+> verificar si aplica sin costo o indicarte su precio antes de agregarla.»
+
+La regla general de accesorios también fue actualizada para distinguir
+explícitamente el regalo de la cotización sin asumir condiciones.
+
+El **paquete V1 del documento anterior está cancelado y nunca debe
+promoverse**. El paquete nuevo tiene:
+
+- versión `bundle-static-semantic-financing-directness-20261018-v2`;
+- SHA-256 **`87593b8d9284c8d12b56f02916364d7a74e2726925b76754b824ef3ef38073ca`**;
+- 72/72 conversaciones comerciales, 48/48 cuotas no vistas antes,
+  10/10 consultas de accesorios, 14/14 controles negativos,
+  108/108 consultas ficticias de inventario y 117/117 Ruby;
+- 340/340 pruebas Python locales;
+- segunda evaluación de Groq de la NUEVA versión: `error=false`,
+  categoría `no_issue`, registrada el 18 de octubre a las 19:45 UTC;
+- calidad y hashes registrados en
+  `quality/directness-independent-review.json` y
+  `quality/combined-pilot-review.json`.
+
+Se incorporaron tres servicios:
+- `softmobile-directness-ai-review.timer`, una vez por hora al minuto
+  52 UTC, con reutilización de una aprobación independiente reciente;
+- `softmobile-combined-pilot-promotion.timer`, 00:05 UTC;
+- `softmobile-finance-pilot-promoter.timer`, 00:09 UTC, solo de
+  contingencia si el paquete completo no se promueve.
+
+El promotor **exige una aprobación Groq reciente vinculada al SHA exacto**,
+aparte de todas las pruebas aisladas, del límite de una mejora por día
+y de la reversión automática. Al no haber cumplido aún la siguiente
+ventana UTC, el estado actual es **preparado y programado, NO
+desplegado**.
+
+La ruta de contingencia puede desplegar únicamente la corrección
+determinista de cuotas `972b74f1e4a9126059fb273117178f131a7299e5f24b03c15451d7df5734755e`,
+siempre que el código base original persista, los tests se repitan y
+no se haya usado el cupo diario. Ambos comparten el mismo historial
+de despliegues y jamás hacen dos instalaciones aprendidas el mismo día.
+El promotor antiguo de accesorios por separado queda detenido para no
+competir con el paquete V2.
+
+**La preparación para atención general sigue bloqueada:** no hay
+inventario comercial confirmado, no se autorizaron reservas/pagos
+reales y no se ampliaron destinatarios. Cualquier falla futura de
+Groq o de las pruebas hará que se posponga el despliegue sin
+contaminar el inventario ni las comunicaciones de producción.

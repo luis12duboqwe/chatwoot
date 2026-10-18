@@ -11,7 +11,7 @@ class SemanticTests(unittest.TestCase):
   self.assertNotIn("system(",s.RUBY_RULE)
  def test_gate_fails_on_negative_regression(self):
   raw=[{"reply":"not safe","tag":"normal","human":False} for i in s.POSITIVE+s.NEGATIVE]
-  response=[{"reply":s.learn.FAMILIES[s.NAME]["reply"],"tag":"sm_semantic_accessory","human":True}
+  response=[{"reply":s.SEMANTIC_REPLY,"tag":"sm_semantic_accessory","human":True}
             for p in s.POSITIVE]+[{"reply":"bad","tag":"changed","human":True} for p in s.NEGATIVE]
   runner=Mock(side_effect=[raw,response])
   outcome=s.gates("old","candidate",inspect_fn=runner,syntax=lambda x:True,
@@ -19,7 +19,7 @@ class SemanticTests(unittest.TestCase):
   self.assertEqual(outcome["status"],"rejected")
   self.assertEqual(outcome["reason"],"negative_regression")
  def test_requires_six_real_improvements(self):
-  row={"reply":s.learn.FAMILIES[s.NAME]["reply"],"tag":"sm_semantic_accessory","human":True}
+  row={"reply":s.SEMANTIC_REPLY,"tag":"sm_semantic_accessory","human":True}
   allsame=[row for x in s.POSITIVE+s.NEGATIVE]
   outcome=s.gates("old","new",inspect_fn=Mock(side_effect=[allsame,allsame]),
       syntax=lambda x:True,regression=lambda x:{"status":"passed","total":117})

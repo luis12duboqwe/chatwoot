@@ -15,6 +15,7 @@ DIR=Path(__file__).resolve().parent/"quality"
 STAGE=DIR/"semantic-generalization-candidates"
 REPORT=DIR/"semantic-generalization-review.json"
 NAME="extra_accessory"
+SEMANTIC_REPLY="Todavía no puedo confirmarte el precio de la funda u otro accesorio ni ofrecerlo gratis; un asesor debe comprobar si la regalía aplica a ese equipo y cuánto costaría incluirlo."
 SIGN="      # SM_GENERALIZED_EXTRA_ACCESSORY_BEGIN"
 END="      # SM_GENERALIZED_EXTRA_ACCESSORY_END"
 # Static pattern authored as source by engineer, not generated from client/Groq.
@@ -25,7 +26,7 @@ RUBY_RULE=r'''      # SM_GENERALIZED_EXTRA_ACCESSORY_BEGIN
          t.match?(/\b(?:precio|cuanto|cuesta|costo|vale|agregar|anadir|incluir|incluida|incluido|adicional|aparte|pagarla|pagarlo)\b/) &&
          !t.match?(/\b(?:reclamo|reclamar|devolucion|reembolso|garantia|dano|danado|defecto|falla|fallo|roto|quebrado|cambio por garantia|mi compra|ya compre|ya pague|pin|cvv|otp|clave|contrasena|banco|tarjeta|transferencia|deposito|reparacion|reparar|pedido|paquete)\b/) &&
          t.length<=155
-        return {reply:"El precio de ese accesorio y si se puede incluir no están confirmados. Un asesor debe revisar la compatibilidad, existencia y precio antes de añadirlo.",
+        return {reply:"Todavía no puedo confirmarte el precio de la funda u otro accesorio ni ofrecerlo gratis; un asesor debe comprobar si la regalía aplica a ese equipo y cuánto costaría incluirlo.",
                 note:"CONSULTA DE ACCESORIO: verificar unidad y precio; no ofrecer regalos ni prometer accesorios.",
                 needs_human:true,intent: :learned_handoff,tag:"sm_semantic_accessory"}
       end
@@ -111,7 +112,7 @@ def gates(original,candidate,inspect_fn=inspect,regression=None,syntax=None):
   checks["reason"]="ruby_syntax_failed";return checks
  old=inspect_fn(original,POSITIVE+NEGATIVE)
  new=inspect_fn(candidate,POSITIVE+NEGATIVE)
- desired=learn.FAMILIES[NAME]["reply"]
+ desired=SEMANTIC_REPLY
  changed_improved=0
  for b,a in zip(old[:len(POSITIVE)],new[:len(POSITIVE)]):
   if a["reply"]!=desired or a["human"] is not True or a["tag"]!="sm_semantic_accessory":
