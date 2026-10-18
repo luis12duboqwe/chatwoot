@@ -54,6 +54,9 @@ class ShadowEvaluationTests(unittest.TestCase):
     "human_review":False,"suggested_reply":"¿Querés comparar ambos modelos?"}
   with patch.dict(shadow.os.environ,{"SOFTMOBILE_AI_ENABLED":"true"}):
    result=shadow.evaluate(api=unsafe_draft,key_provider=lambda:"fake")
-  self.assertFalse(result["all_passed"])
-  self.assertTrue(any(x["api_ok"] and not x["human_handoff"] for x in result["results"]))
+  # Commercially sensitive missing review flags must now be repaired
+  # by the independent, deterministic private-note guard.
+  self.assertTrue(result["all_passed"])
+  self.assertEqual(result["safe_handoff"],7)
+  self.assertGreater(result["claim_blocks"],0)
 if __name__=="__main__":unittest.main()
