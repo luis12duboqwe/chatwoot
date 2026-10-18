@@ -16,6 +16,8 @@ SENSITIVE_TOPICS = re.compile(
     r"garant[ií]a\w*|financ\w*|cuota\w*|descuento\w*|reserv\w*|apart\w*|"
     r"anticipo\w*|reclamo\w*|tarjeta\w*|factur\w*|devoluci[oó]n\w*|"
     r"precio\w*|stock|existencia\w*|disponib\w*|fotos?|fotograf[ií]a\w*|"
+    r"entreg\w*|env[ií]o\w*|retir\w*|recog\w*|probar|probarlo|"
+    r"revisar(?:lo)? antes de pag(?:ar|o)|pagar|despach\w*|recib\w*|"
     r"tienen?|hay|cu[aá]nto\w*|cuesta\w*)\b", re.I
 )
 SCHEMA = {
