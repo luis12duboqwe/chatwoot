@@ -37,6 +37,11 @@ class DirectnessTests(unittest.TestCase):
     p.write_text(json.dumps(r));p.chmod(0o600)
     (Path(d)/"directness-independent-review.json").write_text(json.dumps(r))
     (Path(d)/"directness-independent-review.json").chmod(0o600)
+    variant_review={"status":"ai_approved_for_review","ai_approved":True,
+      "candidate_sha256":bundle.digest(candidate),
+      "at":bundle.datetime.now(bundle.timezone.utc).isoformat()}
+    (Path(d)/"variant-context-ai-review.json").write_text(json.dumps(variant_review))
+    (Path(d)/"variant-context-ai-review.json").chmod(0o600)
     self.assertTrue(bundle.independent_quality_approved(candidate))
     r["judge_error"]=True
     (Path(d)/"directness-independent-review.json").write_text(json.dumps(r))

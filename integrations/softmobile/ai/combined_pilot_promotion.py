@@ -27,6 +27,8 @@ import inventory_quality_lab as inventory
 import synthetic_lab as lab
 import auto_improver as fixer
 import accessory_directness as direct
+import variant_context_candidate as variant
+import context_accuracy_lab as context
 import learned_retest as retest
 
 ROOT=Path(__file__).resolve().parent
@@ -34,11 +36,12 @@ QA=ROOT/"quality"
 STAGING=QA/"combined-pilot-candidates"
 REVIEW=QA/"combined-pilot-review.json"
 STATUS=QA/"combined-pilot-promotion-status.json"
-REVISION="bundle-static-semantic-financing-directness-20261018-v3"
+REVISION="bundle-static-semantic-financing-directness-preferences-v4"
 DAILY_CAP=1
 EXPECTED_BASE="4dc2814ddb5d3a03c31add202cb004f6369a77b154f2fa5141d5dfb3220ef106"
 KNOWN_SEM_SHA="47e4ccc0ac8a85cb62778ac9098e4f33f223f42807bee14741e54d65961bc03e"
 KNOWN_FIN_SHA="972b74f1e4a9126059fb273117178f131a7299e5f24b03c15451d7df5734755e"
+KNOWN_V4_SHA="970ac57ef00ba068d5319ec8b865dbaa597192e21a1ea1f16d9ca5273bf13d7a"
 
 def digest(s):
  return hashlib.sha256(s.encode()).hexdigest()
@@ -50,7 +53,8 @@ def prepare(source,pack):
  # No model-generated Ruby allowed: this is two fixed literal replacements.
  sem=semantic.build(source,pack)
  fin=finance.create_candidate(source)
- combined=direct.append(finance.create_candidate(sem))
+ combined=variant.build(direct.append(finance.create_candidate(sem)))
+ if digest(combined)!=KNOWN_V4_SHA:raise ValueError("Unknown static context candidate")
  if digest(sem)!=KNOWN_SEM_SHA or digest(fin)!=KNOWN_FIN_SHA:
   raise ValueError("Proven independent candidate SHA mismatch")
  if source.count("PILOT_CONVERSATION_ID = 3")!=1 or source.count("INBOX_ID = 2")!=1:
@@ -103,6 +107,9 @@ def evidence(source,combined):
  extra=rapid_replay.compare(baseline_replay,candidate_replay)
  if extra["cases_compared"]<50 or extra["new_flags_in_candidate"]:
   return {"status":"synthetic_backlog_regression","comparison":extra}
+ preference=context.evaluate(source=combined)
+ if preference["total"]!=8 or preference["passed"]!=8:
+  return {"status":"buyer_preference_regressions","cases":preference}
  return {"status":"gates_passed","sales_before":before["passed"],"sales_after":after["passed"],
          "total_sales":after["scenarios"],
          "financing_before":before["by_family"]["financing"]["passed"],
@@ -112,6 +119,7 @@ def evidence(source,combined):
          "semantic_positive":sem["positive"],"semantic_negative":sem["negative"],
          "direct_accessory_answer_verification":True,
          "ruby_regressions":sem["ruby_regressions"]["total"],
+         "context_choices":preference["passed"],
          "synthetic_backlog_replayed":extra["cases_compared"],
          "synthetic_backlog_new_flags":extra["new_flags_in_candidate"],
          "stock_scenarios":cand["scenario_count"],"stock_before":base["passed"],
@@ -189,6 +197,18 @@ def independent_quality_approved(candidate):
  if observed.get("candidate_sha256")!=digest(candidate):return False
  if observed.get("revision")!=REVISION:return False
  if observed.get("judge_error") is not False:return False
+ variant_review=_load(QA/"variant-context-ai-review.json",{})
+ if (variant_review.get("status")!="ai_approved_for_review"
+     or variant_review.get("ai_approved") is not True
+     or variant_review.get("candidate_sha256")!=digest(candidate)):
+  return False
+ try:
+  approved=datetime.fromisoformat(variant_review["at"])
+  if approved.tzinfo is None:return False
+  elapsed=(datetime.now(timezone.utc)-approved.astimezone(timezone.utc)).total_seconds()
+  if not 0<=elapsed<=86400:return False
+ except (KeyError,TypeError,ValueError):
+  return False
  try:
   timestamp=datetime.fromisoformat(observed["at"])
   if timestamp.tzinfo is None:return False
