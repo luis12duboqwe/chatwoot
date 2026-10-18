@@ -12,6 +12,7 @@ from pathlib import Path
 import autonomous_learning as learn
 import semantic_generalization as sem
 import synthetic_lab as lab
+import promotion_budget
 import auto_improver as fixer
 from quality_auditor import _load,_atomic_json
 
@@ -26,7 +27,7 @@ def daily_count(rows,day):
 def assess(allow_deploy=False,validator=sem.gates,installer=fixer.deploy):
  day=datetime.now(timezone.utc).date().isoformat()
  hist=_load(learn.HISTORY,[])
- if daily_count(hist,day)>=MAX_DAILY_PROMOTIONS:
+ if daily_count(hist,day)>=MAX_DAILY_PROMOTIONS or promotion_budget.exhausted(day):
   return {"status":"daily_deployment_cap","promoted":False}
  pack=learn.validate_pack(_load(learn.STORE,learn.empty_pack()))
  source=learn.BOT.read_text()

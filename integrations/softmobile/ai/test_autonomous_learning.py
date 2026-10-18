@@ -40,7 +40,7 @@ class AutoLearningTests(unittest.TestCase):
     {"day":"2000-01-01","status":"daily_deployment_cap"},
     {"day":"2000-01-01","promoted":False}]))
    (root/"history.json").chmod(0o600)
-   with patch.object(a,"HISTORY",root/"history.json"),patch.object(a,"STORE",root/"policy.json"),patch.object(a.lab,"ISSUES",root/"issues.json"):
+   with patch.object(a,"HISTORY",root/"history.json"),patch.object(a,"STORE",root/"policy.json"),patch.object(a.lab,"ISSUES",root/"issues.json"),patch.object(a.promotion_budget,"exhausted",return_value=False):
     (root/"issues.json").write_text("[]")
     (root/"issues.json").chmod(0o600)
     outcome=a.evaluate(max_deploy=True)

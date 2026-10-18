@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 
+import promotion_budget
 from quality_auditor import _load,_atomic_json,FINDINGS,STATE,REPORT,summarize,normalize
 
 LIVE=Path("/opt/softmobile-waha-test/sales-bot-v2.rb")
@@ -307,7 +308,8 @@ def main():
   findings=_load(FINDINGS,[])
   history=_load(HISTORY,[])
   day=datetime.now(timezone.utc).date().isoformat()
-  if sum(x.get("day")==day and x.get("status")=="deployed" for x in history)>=DAILY_CAP:
+  if (sum(x.get("day")==day and x.get("status")=="deployed" for x in history)>=DAILY_CAP
+      or promotion_budget.exhausted(day)):
    print("daily_deployment_cap")
    return 0
   current=valid_pack(_load(PACK,default_pack()))

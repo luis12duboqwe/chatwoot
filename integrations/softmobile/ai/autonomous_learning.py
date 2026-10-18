@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 
+import promotion_budget
 import auto_improver as fixer
 import synthetic_lab as lab
 from configurar_clave_groq import stored_key
@@ -268,8 +269,10 @@ def evaluate(max_deploy=False,api=lab.api_json,key=None):
  if len(pack["rules"])>=MAX_RULES:return {"status":"max_learned_rules_reached"}
  history=_load(HISTORY,[])
  day=datetime.now(timezone.utc).date().isoformat()
- if max_deploy and sum(x.get("day")==day and x.get("promoted") is True
-                      for x in history if isinstance(x,dict))>=MAX_DEPLOYS:
+ if max_deploy and (
+     sum(x.get("day")==day and x.get("promoted") is True
+         for x in history if isinstance(x,dict))>=MAX_DEPLOYS
+     or promotion_budget.exhausted(day)):
   return {"status":"daily_deployment_cap"}
  rows=candidate_issues(_load(lab.ISSUES,[]),pack)
  if not rows:return {"status":"no_eligible_new_issue"}

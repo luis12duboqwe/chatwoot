@@ -14,6 +14,7 @@ import conversion_training_lab as sales
 import financing_holdout
 import inventory_quality_lab as stock
 from isolated_gate import gates as ruby_gates
+import promotion_budget
 from quality_auditor import _load,_atomic_json
 import auto_improver as fixer
 import synthetic_lab as lab
@@ -59,7 +60,7 @@ def validate(source,candidate):
 def promote(installer=fixer.deploy,validator=validate):
  now=datetime.now(timezone.utc).isoformat()
  day=datetime.now(timezone.utc).date().isoformat()
- if bundled.deployed_today(day)>=1:
+ if bundled.deployed_today(day)>=1 or promotion_budget.exhausted(day):
   return {"at":now,"status":"daily_deployment_cap","promoted":False}
  source=learner.BOT.read_text()
  if bundled.digest(source)==KNOWN_FIN_SHA:
