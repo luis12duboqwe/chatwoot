@@ -957,3 +957,58 @@ de ventas reales por un juez humano independiente. No hay integración
 de inventario, precios verificados ni autorización para autoenviar
 mensajes de Groq. El bot Ruby activo y el parche conversacional PR #4
 siguen sin cambios ni nuevas implementaciones de esta fase.
+
+## Evaluación estricta de ventas, calidad y límite compartido — 18 oct 2026 UTC
+
+Se revisó el resultado anterior de **20/20** conversaciones ficticias de cinco
+turnos. Aquella puntuación sólo medía coherencia de producto, palabra clave
+del tema y derivación humana; era demasiado permisiva para afirmar que la
+respuesta resultaba comercialmente útil. Este hallazgo motivó una batería
+independiente, no una extensión de capacidad productiva.
+
+### Medidas implantadas
+- `sales_quality_gate.py`: filtro de calidad determinístico, para
+  relevancia, siguiente paso accionable, detalle suficiente y rechazo de
+  respuestas con una lista indiscriminada de palabras clave o frases vagas.
+  Se reconoce que un criterio lexical tiene falsos positivos/negativos:
+  **no equivale a evaluación de un vendedor humano**.
+- `groq_sales_objections.py` combina este filtro con coherencia de
+  modelo/color/capacidad, derivación humana, estado de proveedor y detección
+  de afirmaciones comerciales no verificadas. No guarda el contenido de
+  las respuestas de Groq: sólo marcas de calidad y categorías fijas.
+- `suggestion_guard.py`: en las sugerencias PRIVADAS del asistente
+  para un asesor, reemplaza borradores no pertinentes, vacíos, repetitivos
+  o genéricos por una respuesta prudente relacionada con el motivo de la
+  consulta (precio, cuotas, entrega, garantía, prueba, canje o intención de
+  compra). Esta capa no aplica código al bot Ruby ni envía WhatsApps.
+- Las ejecuciones reales de 20 consultas comparten ahora el presupuesto
+  local de **160 llamadas Groq por día UTC** de `synthetic_lab.py`;
+  la reserva individual es atómica y protegida por el mismo bloqueo.
+  Si el límite o el proveedor falla, la evaluación se detiene sin
+  reintentos masivos. Además, límite de 2 ejecuciones reales de este
+  evaluador por día, con 2 segundos entre llamadas.
+- `test_sales_quality_gate.py` y extensiones de otras pruebas
+  verifican rechazos de respuestas irrelevantes, mensajes con demasiadas
+  palabras comerciales, preservación de respuestas válidas y cuota
+  compartida sin acceso a la API.
+
+### Evidencia de Groq y límites
+- Bajo el criterio anterior: **20/20** respuestas válidas en una muestra
+  ficticia; indicador insuficiente para evaluar capacidad comercial.
+- Bajo el criterio nuevo: **7/20** superaron todos los controles, 20/20
+  cumplieron formato, las preferencias y derivaciones; **2 fuera de tema**
+  y **12 sin suficiente acción o especificidad** (categorías que pueden
+  solaparse). **3** afirmaciones comerciales fueron bloqueadas.
+  No hubo fallos de conexión al proveedor en esta segunda ejecución.
+- La respuesta a este hallazgo fue añadir filtros de calidad a las notas
+  privadas, no habilitar el envío automático.
+- **229/229** pruebas Python locales aprobaron después de los cambios.
+  Las pruebas de GitHub se ejecutan offline y no hacen llamadas Groq;
+  el CI del commit actual debe verificarse por separado.
+
+Este resultado NO implica 35% de ventas ni justifica aumentar permisos.
+Para producción quedan pendientes un inventario autorizado, control de
+precios reales, verificaciones de cierre, revisión de asesores y pruebas
+reales limitadas a la cuenta/bandeja/conversación piloto (2/2/3).
+No hay mensajes al cliente, pedidos, inventario o cobros modificados por
+el laboratorio de evaluación.
