@@ -61,7 +61,15 @@ class PatchProposerTests(unittest.TestCase):
  def test_ruby_syntax_is_parse_only_and_no_exec(self):
   class Outcome:returncode=0;stdout="Syntax OK\n"
   def fake_runner(argv,**args):
-   self.assertEqual(argv,["docker","exec","-i","softmobile-chatwoot-rails-1","ruby","-c"])
+   self.assertEqual(argv[0:2],["docker","run"])
+   self.assertIn("--network",argv)
+   self.assertIn("none",argv)
+   self.assertIn("--read-only",argv)
+   self.assertIn("--cap-drop",argv)
+   self.assertIn("--user",argv)
+   self.assertIn("65534:65534",argv)
+   self.assertNotIn("softmobile-chatwoot-rails-1",argv)
+   self.assertEqual(argv[-2:],["-c","-"])
    self.assertEqual(args["input"],self.src)
    return Outcome()
   self.assertTrue(p.syntax_only(self.src,runner=fake_runner))
