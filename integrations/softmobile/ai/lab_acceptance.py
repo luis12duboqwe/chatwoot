@@ -45,6 +45,9 @@ def calculate(load=_load,active_ruby=None,now=None):
  stock=obj("training-inventory-quality-report.json")
  candidate=obj("combined-pilot-review.json")
  independent=obj("directness-independent-review.json")
+ variant=obj("variant-context-full-review.json")
+ variant_ai=obj("variant-context-ai-review.json")
+ context=obj("context-accuracy-report.json")
  learned=obj("learned-dialogue-retest.json")
  production=obj("production-readiness.json")
  if not isinstance(inter,list):inter=[]
@@ -95,20 +98,30 @@ def calculate(load=_load,active_ruby=None,now=None):
         and evidence.get("synthetic_backlog_new_flags")==0
         and independent.get("status")=="independent_ai_approved"
         and independent.get("candidate_sha256")==candidate.get("candidate_sha256")
-        and recent(independent.get("at"),24,now),
+        and recent(independent.get("at"),24,now)
+        and variant.get("status")=="review_ready_needs_independent_ai"
+        and variant.get("context_choices")==8
+        and variant.get("historical_diff",{}).get("new_flags_in_candidate")==0
+        and variant_ai.get("status")=="ai_approved_for_review"
+        and variant_ai.get("candidate_sha256")==variant.get("candidate_sha256")
+        and recent(variant_ai.get("at"),24,now),
         {"sales":evidence.get("sales_after"),"holdout":evidence.get("holdout_after"),
          "stock":evidence.get("stock_after"),"previous_cases":evidence.get("synthetic_backlog_replayed"),
          "new_flags":evidence.get("synthetic_backlog_new_flags"),
-         "ai_review":independent.get("status")}),
+         "ai_review":independent.get("status"),
+         "context_choices":variant.get("context_choices"),
+         "context_ai_review":variant_ai.get("status")}),
   gauge("version_instalada_aprueba_ventas",15,
-        digest is not None and digest==candidate.get("candidate_sha256")
+        digest is not None and digest==variant.get("candidate_sha256")
+        and context.get("passed")==context.get("total")==8
         and sales.get("passed")==72 and hold.get("passed")==48
         and sales.get("scenarios")==72 and hold.get("total")==48
         and recent(sales.get("at"),2,now) and recent(hold.get("at"),2,now),
-        {"live_sha":digest,"candidate_sha":candidate.get("candidate_sha256"),
+        {"live_sha":digest,"candidate_sha":variant.get("candidate_sha256"),
+         "live_context_passed":context.get("passed"),
          "live_sales_passed":sales.get("passed"),"live_financing_passed":hold.get("passed")}),
   gauge("postinstalacion_y_segunda_opinion",10,
-        digest is not None and digest==candidate.get("candidate_sha256")
+        digest is not None and digest==variant.get("candidate_sha256")
         and learned.get("deterministic_failed")==0
         and learned.get("ai_flagged")==0
         and learned.get("ai_confirmed",0)>=learned.get("checked",1)
