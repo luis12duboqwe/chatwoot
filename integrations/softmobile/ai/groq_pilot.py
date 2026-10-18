@@ -7,6 +7,7 @@ import re
 import sys
 from urllib import error, request
 from variant_preference import expected_selection
+from journey_memory import COMPARE, PREFER
 
 ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "openai/gpt-oss-20b"
@@ -17,6 +18,8 @@ SENSITIVE_TOPICS = re.compile(
     r"anticipo\w*|reclamo\w*|tarjeta\w*|factur\w*|devoluci[oó]n\w*|"
     r"precio\w*|stock|existencia\w*|disponib\w*|fotos?|fotograf[ií]a\w*|"
     r"entreg\w*|env[ií]o\w*|retir\w*|recog\w*|probar|probarlo|"
+    r"(?:es (?:nuevo|usado)|nuevo o usado|puedo revisar(?:lo)?|"
+    r"revisar(?:lo)? antes de pag\w*|estado del (?:equipo|telefono|teléfono)|bater[ií]a\w*)|"
     r"revisar(?:lo)? antes de pag(?:ar|o)|pagar|despach\w*|recib\w*|"
     r"tienen?|hay|cu[aá]nto\w*|cuesta\w*)\b", re.I
 )
@@ -45,6 +48,8 @@ SYSTEM = (
     "Nunca interpretes automáticamente la ULTIMA mención de un color o capacidad como la elección: "
     "si dice PREFIERO 256GB AZUL PERO CUÁNTO CUESTA 128GB NEGRO, la preferencia es AZUL 256GB; "
     "si dice SI NO HAY 512GB NEGRO, MEJOR 256GB AZUL, la preferencia es AZUL 256GB. "
+    "Cuando comparison_only=true el cliente está preguntando sobre otra opción, "
+    "NO está eligiendo la variante mencionada: mantené modelo, capacidad y color del contexto previo. "
     "El campo selected_preference contiene requisitos verificados del último mensaje, "
     "priorízalos sobre el historial y las opciones comparadas. Si selected_preference indica "
     "ambiguous=true, no afirmes que el cliente ya eligió: ofrece aclarar opciones y "
@@ -89,9 +94,17 @@ def prepare(data):
                      if k in context and isinstance(context[k], (str, int, float, list))}
     return {"conversation_id": conv, "message": redact(msg), "context": clean_context}
 
+def _comparison_only(clean):
+    message=clean["message"]
+    return bool(COMPARE.search(message)) and not bool(PREFER.search(message))
+
+def _verified_choice(clean):
+    return {"storage_gb":None,"color":None,"ambiguous":False} if _comparison_only(clean) else expected_selection(clean["message"])
+
 def payload(clean):
     user = json.dumps({"message": clean["message"], "context": clean["context"],
-                       "selected_preference": expected_selection(clean["message"])},
+                       "selected_preference": _verified_choice(clean),
+                       "comparison_only": _comparison_only(clean)},
                       ensure_ascii=False)
     return {
         "model": os.environ.get("SOFTMOBILE_AI_MODEL", MODEL),
@@ -125,7 +138,7 @@ def validate(answer, clean):
         raise PilotError("Respuesta demasiado larga o vacía.")
     # Only enforce a clearly selected preference. The latest *mentioned*
     # phone might be a comparison or a rejected option, not the buyer's choice.
-    preference = expected_selection(clean["message"])
+    preference = _verified_choice(clean)
     if preference["storage_gb"] is not None and answer["storage_gb"] != preference["storage_gb"]:
         raise PilotError("La IA conservó o eligió una capacidad distinta a la preferida.")
     if preference["color"] is not None:
@@ -137,6 +150,21 @@ def validate(answer, clean):
             raise PilotError("La IA conservó o eligió un color distinto al preferido.")
     if preference["ambiguous"]:
         answer["human_review"] = True
+    # A question about a second variant's price is a comparison, not a
+    # request to replace the already selected model/color/capacity.
+    comparison_only = _comparison_only(clean)
+    if comparison_only:
+        known = clean.get("context") or {}
+        if known.get("model") and answer["model"] and answer["model"].casefold()!=str(known["model"]).casefold():
+            raise PilotError("La IA cambió el modelo elegido al comparar precios.")
+        if known.get("storage_gb") and answer["storage_gb"] != int(known["storage_gb"]):
+            raise PilotError("La IA cambió la capacidad elegida al comparar precios.")
+        if known.get("color_options"):
+            from sales_context import ALIASES
+            chosen = str(known["color_options"]).casefold()
+            provided = [ALIASES.get(c.casefold(),c.casefold()) for c in answer["color_options"]]
+            if chosen not in provided:
+                raise PilotError("La IA cambió el color elegido al comparar precios.")
     # Never trust LLM refusal to escalate commercially sensitive topics.
     if SENSITIVE_TOPICS.search(clean["message"]) or SENSITIVE_TOPICS.search(answer["suggested_reply"]):
         answer["human_review"] = True
