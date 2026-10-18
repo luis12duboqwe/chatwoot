@@ -84,10 +84,47 @@ TRADE_IN_REPLY_KEYS=("parte de pago","canje","valoracion","valoración","recibir
 RUBRIC_BY_TOPIC={"comparison":"comparison","variant":"product","trade_in":"trade_in","payment":"payment","shipping":"shipping",
  "inspection":"inspection","warranty":"warranty","price":"budget","purchase":"closing"}
 
+# Extra guards for multi-part sales questions and after-sales support.
+def _customer_signals(message):
+ if not isinstance(message,str):return set()
+ signals=set()
+ if re.search(r"\b(?:compre|compré|comprado|ya (?:lo )?compr[eé]|mi compra|ya pagu[eé]|me lleg[oó]|me entregaron)\b",message,re.I) and re.search(r"\b(?:fall[oó]|falla|da[ñn][oó]|da[ñn]ado|no funciona|reclamo|garant[ií]a|cargador)\b",message,re.I) or re.search(r"\b(?:reclamo|reclamar garant[ií]a|devoluci[oó]n)\b",message,re.I):
+  signals.add("post_sale")
+ if re.search(r"\b(?:mi pedido|mi paquete|n[uú]mero de gu[ií]a|rastrear(?:lo)?|seguimiento (?:de|del) (?:pedido|env[ií]o))\b",message,re.I):
+  signals.add("tracking")
+ if re.search(r"\bgarant[ií]a\b",message,re.I) and re.search(r"\b(?:accesorios?|cargador|funda|estuche|regal[ií]as)\b",message,re.I):
+  signals.add("bundle")
+  if re.search(r"\b(?:nuevo o usado|es nuevo|es usado|estado del (?:equipo|celular))\b",message,re.I):
+   signals.add("condition")
+ if re.search(r"\b(?:precio|cu[aá]nto cuesta|cu[aá]nto vale)\b",message,re.I) and re.search(r"\b(?:cuotas?|financiamiento|extrafinanciamiento|mensualidades)\b",message,re.I):
+  signals.add("price_and_finance")
+ return signals
+
+def _misses_secondary_intent(reply,clean):
+ if not isinstance(clean,dict):return False
+ signal=_customer_signals(clean.get("message"))
+ v=_fold(reply) if isinstance(reply,str) else ""
+ if "post_sale" in signal and re.search(r"\bantes de (?:concretar |realizar )?(?:la )?compra\b",v):
+  return True
+ if "tracking" in signal and not re.search(r"\b(?:pedido|guia|seguimiento|rastre)\w*\b",v):
+  return True
+ if "bundle" in signal:
+  if not re.search(r"\bgarantia\b",v) or not re.search(r"\b(?:accesorios?|cargador|funda|estuche|regalias)\b",v):
+   return True
+  if "condition" in signal and not re.search(r"\b(?:nuev[oa]|usad[oa]|estado|condicion)\b",v):
+   return True
+ if "price_and_finance" in signal and (not re.search(r"\bprecio\b",v) or not re.search(r"\b(?:cuotas?|financiamiento|mensualidades|bancos?)\b",v)):
+  return True
+ return False
+
 def _buyer_topic(clean):
  if not isinstance(clean,dict) or not isinstance(clean.get("message"),str):
   return None
  message=clean["message"]
+ signals=_customer_signals(message)
+ if "post_sale" in signals or "bundle" in signals:return "warranty"
+ if "tracking" in signals:return "shipping"
+ if "price_and_finance" in signals:return "payment"
  for name,pattern,_ in TOPIC_PATTERNS:
   if pattern.search(message):
    if name=="price" and re.search(r"\b(?:descuento|promocion|promoción|oferta)\b",message,re.I):
@@ -103,6 +140,26 @@ def _topic_fallback(clean):
  if not isinstance(clean,dict):return FALLBACK
  message=clean.get("message","")
  if not isinstance(message,str):return FALLBACK
+ signals=_customer_signals(message)
+ if "post_sale" in signals:
+  return ("Para revisar el reclamo por garantía de ese equipo o accesorio, "
+          "un asesor debe comprobar la falla y la cobertura aplicable sin "
+          "prometer un cambio antes de verificarlo. ¿Qué problema presenta?")
+ if "tracking" in signals:
+  return ("Un asesor debe revisar el estado de tu pedido, la guía de envío y "
+          "el transporte antes de confirmar una fecha de entrega. "
+          "¿Tenés el número de pedido a mano?")
+ if "bundle" in signals:
+  if "condition" in signals:
+   return ("Un asesor debe confirmar la garantía, los accesorios y si la "
+           "unidad es nueva o usada antes de venderla. ¿Querés que "
+           "verifique los tres datos?")
+  return ("Un asesor debe confirmar la garantía y los accesorios que "
+          "corresponden a esa unidad. ¿Querés que revise ambos datos?")
+ if "price_and_finance" in signals:
+  return ("Un asesor debe verificar el precio actual de la unidad y las "
+          "cuotas de financiamiento aplicables, sin prometer aprobación. "
+          "¿Con qué banco te interesa pagar?")
  for _,regex,reply in TOPIC_PATTERNS:
   if regex.search(message):return reply
  from sales_context import preference_snapshot
@@ -121,6 +178,7 @@ def guarded_draft(output,clean=None):
  quality=assess(reply,topic) if topic else None
  if (quality is not None and not all(quality[k] for k in ("relevant","actionable","specific","meaningful"))) or (HARD_CLAIMS.search(reply) or FIGURES.search(reply) or
      CREDENTIALS.search(reply) or _repeats_known_question(reply,clean) or
+     _misses_secondary_intent(reply,clean) or
      (isinstance(clean,dict) and isinstance(clean.get("message"),str) and
       TRADE_IN_PATTERN.search(clean["message"]) and
       not any(key in _fold(reply) for key in TRADE_IN_REPLY_KEYS))):
