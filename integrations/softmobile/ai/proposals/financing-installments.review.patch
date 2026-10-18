@@ -1,0 +1,11 @@
+--- sales-bot-v2.rb
++++ sales-bot-v2.rb
+@@ -73,7 +73,7 @@
+       if (m = t.match(/\b(?:samsung\s+|galaxy\s+)?s\s*(2[0-6])(?:\s+(ultra|plus|fe))?\b/))
+         return [:samsung_s,m[1],m[2]]
+       end
+-      if (m = t.match(/\b(?:samsung\s+|galaxy\s+)?a\s*(\d{2})(?:\s+(5g|4g))?\b/))
++      if (m = t.match(/\b(?:samsung\s+|galaxy\s+)?a\s*(\d{2})(?!\s*(?:meses?|cuotas?|pagos?|plazos?|mensualidades)\b)(?:\s+(5g|4g))?\b/))
+         return [:samsung_a,m[1],m[2]]
+       end
+       if (m = t.match(/\b(?:samsung\s+|galaxy\s+)?note\s*(\d{1,2})(?:\s+(ultra|plus))?\b/))
