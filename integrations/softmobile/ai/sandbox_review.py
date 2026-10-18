@@ -171,10 +171,16 @@ def main():
   result={"status":"blocked_before_or_during_sandbox","reason":str(e)[:180],
           "live_bot_modified":False,"client_messages_sent":0}
  if result.get("status")=="behavior_passed":
-  from isolated_gate import gates
-  checks=gates(candidate)
-  result["ruby_regression_gate"]=checks
-  result["status"]="review_ready" if checks.get("status")=="passed" else "rejected_ruby_regression"
+  from sandbox_stress import analyze
+  stress=analyze(orig,candidate)
+  result["independent_stress"]=stress
+  if stress.get("status")!="stress_passed":
+   result["status"]="rejected_independent_stress"
+  else:
+   from isolated_gate import gates
+   checks=gates(candidate)
+   result["ruby_regression_gate"]=checks
+   result["status"]="review_ready" if checks.get("status")=="passed" else "rejected_ruby_regression"
  result.update({"at":datetime.now(timezone.utc).isoformat(),
    "proposal_file":diff_path.name,"base_sha256":hashlib.sha256(orig.encode()).hexdigest()})
  REPORT_DIR.mkdir(parents=True,exist_ok=True,mode=0o700)
