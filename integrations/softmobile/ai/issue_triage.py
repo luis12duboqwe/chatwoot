@@ -19,7 +19,7 @@ ISSUES=ROOT/"quality"/"synthetic-lab-issues.json"
 REPORT=ROOT/"quality"/"issue-triage-report.json"
 VALID_STATUSES={"synthetic_unverified","fix_deployed_pending_synthetic_retest",
                 "retested_ai_clear_pending_deterministic_review","discarded_invalid_scenario"}
-CONFIRMED_FLAGS={"payment_choice_repeat","color_change_ignored","exact_repeat"}
+CONFIRMED_FLAGS={"payment_choice_repeat","color_change_ignored","exact_repeat","stock_no_next_step"}
 
 def bucket(issue):
  if not isinstance(issue,dict):return "malformed"

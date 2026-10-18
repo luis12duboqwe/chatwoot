@@ -47,12 +47,12 @@ class QualityTests(unittest.TestCase):
   parsed=q.sanitize_pair(record)
   self.assertIsNotNone(parsed)
   self.assertEqual(parsed["reply"],"¿En qué colonia o zona sería?")
-  landmark=q.sanitize_pair({"bot_id":239,"inbound_id":237,"incoming":"Gasolinera de ejemplo",
+  landmark=q.sanitize_pair({"bot_id":239,"inbound_id":237,"incoming":"Gasolinera uno",
           "reply":"Tengo anotado el iPhone 16 Pro de 256GB, con envío. Precio por verificar.",
           "previous":"Envío"})
   self.assertIn("shipping_reference_ignored",q.detect(landmark,parsed["reply"]))
  def test_precise_landmarks_are_redacted_before_external_review(self):
-  safe=q.safe_line("Gasolinera de ejemplo")
+  safe=q.safe_line("Gasolinera uno")
   self.assertEqual(safe,"gasolinera [referencia omitida]")
   self.assertNotIn("uno",safe)
   self.assertIn("shipping_reference_ignored",q.detect({
@@ -62,12 +62,12 @@ class QualityTests(unittest.TestCase):
   titanium={"bot_id":227,"inbound_id":225,"incoming":"Color titanium",
    "reply":"Dale, revisamos el iPhone 16 Pro de 256GB. ¿Qué color preferís?",
    "previous":"De 256"}
-  reference={"bot_id":239,"inbound_id":237,"incoming":"Gasolinera de ejemplo",
+  reference={"bot_id":239,"inbound_id":237,"incoming":"Gasolinera uno",
    "reply":"Tengo anotado el iPhone 16 Pro de 256GB, en dorado, con envío. Precio y existencia todavía deben verificarse con un asesor.",
    "previous":"Envío"}
   ack={"bot_id":242,"inbound_id":240,"incoming":"Si",
    "reply":"Tengo anotado el iPhone 16 Pro de 256GB, en dorado, con envío. Precio y existencia todavía deben verificarse con un asesor.",
-   "previous":"Gasolinera de ejemplo"}
+   "previous":"Gasolinera uno"}
   self.assertIn("finish_color_not_understood",q.detect(titanium,"¿Qué color preferís?"))
   self.assertIn("shipping_reference_ignored",q.detect(reference,"Consultamos envío a Comayagua. ¿En qué colonia o zona sería?"))
   self.assertIn("affirmation_repeated_summary",q.detect(ack,reference["reply"]))
@@ -81,6 +81,25 @@ class QualityTests(unittest.TestCase):
  def test_good_disambiguation_not_flagged(self):
   p=dict(self.place,reply="¿Querés retirarlo en Mall Galerías o preferís envío a esa zona?")
   self.assertNotIn("pickup_shipping_ambiguity",q.detect(q.sanitize_pair(p)))
+ def test_incomplete_stock_question_must_advance_buyer(self):
+  answer="Aún no tengo confirmada la existencia del iPhone 14 Pro Max. Un asesor debe comprobar la unidad con el proveedor antes de confirmarte disponibilidad."
+  prompts=("Tienen 14 pro Max?","¿Tienen iPhone 14 Pro Max?","¿Hay Samsung S24 Ultra?")
+  for question in prompts:
+   row=dict(self.cash,incoming=question,reply=answer,previous="")
+   with self.subTest(question=question):
+    self.assertIn("stock_no_next_step",q.detect(row))
+    self.assertFalse(q.score_hits(q.detect(row))==100)
+  improved="Podemos consultar por el iPhone 14 Pro Max; todavía no confirmamos existencias. ¿De cuántos GB y en qué color lo buscás?"
+  for question in prompts:
+   self.assertNotIn("stock_no_next_step",q.detect(dict(self.cash,incoming=question,reply=improved,previous="")))
+ def test_stock_flag_respects_complete_variants_and_customer_escalations(self):
+  reply="No tengo existencias confirmadas. Un asesor verificará el proveedor."
+  for question in ("¿Tienen iPhone 14 Pro Max de 256 GB azul?",
+                   "Quiero hablar con un asesor por iPhone 14 Pro Max.",
+                   "¿Tiene garantía el Samsung S24 Ultra?"):
+   self.assertNotIn("stock_no_next_step",q.detect(dict(self.cash,incoming=question,reply=reply,previous="")))
+  self.assertIn("stock_no_next_step",q.CONCERNS)
+  self.assertGreater(q.ISSUE_PENALTIES["stock_no_next_step"],0)
  def test_confirmed_stock_claim_blocked(self):
   p=dict(self.cash,incoming="Necesito confirmar el Samsung S22 Ultra",
          reply="Tenemos disponible, podés venir")

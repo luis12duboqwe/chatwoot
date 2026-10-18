@@ -67,6 +67,50 @@ class AutoLearningTests(unittest.TestCase):
   self.assertEqual(a.candidate_issues([already],a.empty_pack()),[])
   with patch.object(a.lab,"validate_cases",side_effect=ValueError("unsafe message")):
    self.assertEqual(a.candidate_issues([ISSUE],a.empty_pack()),[])
+ def test_stock_dead_end_is_a_safe_learnable_family_not_arbitrary_code(self):
+  import copy
+  issue=copy.deepcopy(ISSUE)
+  issue["category"]="questions"
+  issue["static_flags"]=["stock_no_next_step"]
+  issue["grade"]["category"]="sales"
+  issue["scenario"]={"category":"questions","messages":[
+   "Hola, busco un celular", "¿Tienen iPhone 14 Pro Max?","Me gustaría ver opciones"]}
+  issue["evidence"]=[
+   {"buyer":"Hola, busco un celular","bot":"¿Qué modelo buscás?"},
+   {"buyer":"¿Tienen iPhone 14 Pro Max?",
+    "bot":"Aún no tengo confirmada la existencia del iPhone 14 Pro Max. Un asesor debe comprobar la unidad antes de confirmarte disponibilidad."},
+   {"buyer":"Me gustaría ver opciones","bot":"Un asesor debe revisar opciones"}
+  ]
+  discovered=a.candidate_issues([issue],a.empty_pack())
+  self.assertTrue(any("stock_followup" in options for _,_,options in discovered))
+  rule={"trigger":a.normalized("¿Tienen iPhone 14 Pro Max?"),"family":"stock_followup","source_issue":issue["id"]}
+  self.assertEqual(a.safe_rule(rule),rule)
+  self.assertIn("¿De cuántos GB y en qué color",a.FAMILIES["stock_followup"]["reply"])
+  for bad in ("tienen iphone 14 pro max 256 gb","tienen iphone 14 pro max azul"):
+   with self.assertRaises(ValueError):a.safe_rule({**rule,"trigger":bad})
+  if issue["evidence"][1]["bot"]=="¿De cuántos GB y en qué color lo buscás?":
+   self.fail("Fixture should be the failing response")
+  already=copy.deepcopy(issue)
+  already["evidence"][1]["bot"]="¿De cuántos GB y en qué color lo buscás?"
+  self.assertFalse(any("stock_followup" in options for _,_,options in a.candidate_issues([already],a.empty_pack())))
+ def test_stock_static_oracle_can_prepare_safe_rule_without_groq(self):
+  import copy
+  row=copy.deepcopy(ISSUE)
+  row.update({"category":"questions","grade":None,"static_flags":["stock_no_next_step"]})
+  row["scenario"]={"category":"questions","messages":[
+   "Hola, busco un equipo","Quiero revisar celulares","¿Tienen iPhone 14 Pro Max?"]}
+  row["evidence"]=[
+   {"buyer":"Hola, busco un equipo","bot":"¿Cuál modelo?"},
+   {"buyer":"Quiero revisar celulares","bot":"¿Cuál modelo buscás?"},
+   {"buyer":"¿Tienen iPhone 14 Pro Max?","bot":"Aún no tengo existencias confirmadas; un asesor lo verifica."}]
+  options=a.candidate_issues([row],a.empty_pack())
+  self.assertEqual(len(options),1)
+  self.assertEqual(options[0][2],["stock_followup"])
+  def unexpected(*args):raise AssertionError("Groq must not be called")
+  with patch.object(a.lab,"reserve",side_effect=unexpected):
+   rule=a.select_rule(options[0][0],options[0][1],options[0][2],None,{},api=unexpected)
+  self.assertEqual(rule["family"],"stock_followup")
+  self.assertEqual(rule["trigger"],"tienen iphone 14 pro max")
  def test_requires_exact_fictional_customer_utterance(self):
   row,scenario,families=a.candidate_issues([ISSUE],a.empty_pack())[0]
   with tempfile.TemporaryDirectory() as path:

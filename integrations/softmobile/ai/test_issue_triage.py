@@ -22,6 +22,14 @@ class TriageTests(unittest.TestCase):
   self.assertEqual(tr.bucket(i),"ai_only_unverified")
   i["grade"]=None
   self.assertEqual(tr.bucket(i),"not_enough_evidence")
+ def test_missing_sales_question_is_tracked_as_deterministic_hypothesis(self):
+  i=json.loads(json.dumps(CASE))
+  i["category"]="questions"
+  i["static_flags"]=["stock_no_next_step"]
+  i["grade"]=None
+  self.assertEqual(tr.bucket(i),"deterministic_signal_pending_replay")
+  i["grade"]={"error":True,"category":"sales"}
+  self.assertEqual(tr.bucket(i),"convergent_signals_pending_replay")
  def test_invalid_evidence_cannot_be_reviewed_as_valid(self):
   i=json.loads(json.dumps(CASE));i["evidence"][1]["buyer"]="una respuesta falsificada"
   self.assertEqual(tr.bucket(i),"invalid_replay_evidence")
