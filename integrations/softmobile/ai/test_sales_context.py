@@ -48,7 +48,12 @@ class SuggestionGuardTests(unittest.TestCase):
    "Te llega en 2 días.",
    "Compárteme el número de tarjeta.",
    "Ya quedó reservado para vos.",
-   "El seguro de pantalla tiene cobertura incluida."
+   "El seguro de pantalla tiene cobertura incluida.",
+   "Está disponible en tienda.",
+   "Viene con cargador.",
+   "Te lo aparto.",
+   "Tenemos en existencia el equipo.",
+   "Entrega inmediata garantizada."
   ]
   for text in examples:
    with self.subTest(text=text):
