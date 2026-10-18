@@ -1,0 +1,39 @@
+--- a/sales-bot-v2.rb
++++ b/sales-bot-v2.rb
+@@ -659,6 +659,36 @@
+       end
+       # SM_REPAIR_LAB_SAFE_RULES_END
+ 
++      # SM_CONVERSATION_QUALITY_20261018_BEGIN
++      # Explicit mixed questions take priority over single-intent rules.
++      # Never invent unit condition, accessories, stock or warranty policies.
++      if t.match?(/\bgarantia\b/) &&
++         t.match?(/\b(?:accesorios?|regalias|cargador|funda|estuche|auriculares?|audifonos?)\b/)
++        return {reply:"#{device ? 'Del '+device+', ' : ''}el plazo y la cobertura de garantía dependen de la unidad y deben confirmarse. También confirmaremos qué accesorios o regalías incluye exactamente y si la unidad es nueva o usada. Un asesor te dará esos tres datos antes de cobrarte.",
++                note:'PREGUNTA COMBINADA: garantía, accesorios/regalías y condición nuevo/usado. Confirmar por unidad y punto; no inventar plazos, estado ni regalos.',
++                needs_human:true,intent: :bundle_warranty_accessories,tag:'garantia_accesorios_estado_pendientes'}
++      end
++      # Fulfilment ETA is not battery/condition inquiry and is never a promise.
++      if t.match?(/\b(?:tiempo estimado de entrega|plazo de entrega|en que plazo entregan|cuanto tardan? en entregar|cuanto tarda(?:ria)? el envio|fecha estimada de llegada)\b/) &&
++         !t.match?(/\b(?:mi pedido|pedido ya pagado|mi paquete|mi envio|numero de orden)\b/)
++        return {reply:"Aún no tengo confirmado el plazo de entrega. Un asesor verificará la disponibilidad, el destino y el transporte antes de darte una fecha. ¿A qué ciudad sería?",
++                note:'PLAZO DE ENTREGA: confirmar stock, origen, destino y transportista; no inventar días ni fecha.',
++                needs_human:true,intent: :shipping_eta,tag:'entrega_fecha_por_confirmar'}
++      end
++      # "When will my order arrive?" after purchase is not a new sales ETA.
++      if t.match?(/\b(?:cuando (?:llega|llegara|recibire) mi pedido|cuando (?:llega|llegara) mi paquete)\b/)
++        return {reply:"Para revisar cuándo podría llegar tu pedido, un asesor debe verificar su estado y los datos de envío con el transportista. ¿Tenés el número de pedido o guía? No enviés datos bancarios.",
++                note:'ESTADO PEDIDO EXISTENTE: comprobar despacho, transporte y número de guía con asesor; no inventar una entrega.',
++                needs_human:true,intent: :order_delivery_status,tag:'estado_pedido_por_confirmar'}
++      end
++      # Timing of a buyer's color/capacity change is not a shipping quote.
++      if device && t.match?(/\b(?:que tiempo tardaria el cambio|cuanto tarda(?:ria)? el cambio|cuando estaria el cambio|cuanto demoraria el cambio)\b/) &&
++         (cap || col)
++        return {reply:"No tengo un plazo confirmado para cambiar la variante del #{device}. Un asesor debe comprobar si se puede conseguir la opción que preferís y cuánto tardaría. No confirmaremos el cambio sin verificarla.",
++                note:'PLAZO DE CAMBIO DE VARIANTE: confirmar nueva configuración, stock, pedido y viabilidad; no prometer fechas.',
++                needs_human:true,intent: :variant_change_eta,tag:'plazo_cambio_por_confirmar'}
++      end
++      # SM_CONVERSATION_QUALITY_20261018_END
+       if ambiguous_model_choice?(raw) && [:stock,:price,:other,:comparison].include?(intent_type)
+         return {reply:'Te ayudo con los dos. ¿Cuál modelo querés que revisemos primero?',
+           note:'MÚLTIPLES MODELOS: no confirmar SKU, precio ni inventario hasta que el cliente elija uno.',
