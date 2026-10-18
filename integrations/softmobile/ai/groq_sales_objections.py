@@ -21,7 +21,9 @@ from groq_pilot import PilotError,prepare,suggest
 from journey_memory import history_snapshot
 from variant_preference import expected_selection
 from suggestion_guard import guarded_draft
-from quality_auditor import _atomic_json
+from quality_auditor import _atomic_json,_load
+from sales_quality_gate import assess
+import synthetic_lab as lab
 
 MAX_CALLS=20
 MAX_REAL_RUNS_PER_DAY=2
@@ -80,6 +82,7 @@ def topic_matches(reply,topic):
 def effective_handoff(reply,review):
  return not review or (reply.get("human_review") is True)
 def failure_category(exc):
+ if isinstance(exc,SharedBudgetExceeded):return "shared_daily_budget_exhausted"
  cause=getattr(exc,"__cause__",None)
  if isinstance(cause,HTTPError):
   if cause.code==429:return "provider_rate_limited"
@@ -93,7 +96,19 @@ def failure_category(exc):
   return "structured_response_rejected"
  return "local_validation_error"
 
-def execute(api=suggest,key_provider=stored_key,pacing_seconds=0):
+class SharedBudgetExceeded(RuntimeError):
+ pass
+
+def reserve_shared_call():
+ """Count this evaluation against the same UTC budget as other Groq labs."""
+ with open(lab.LOCK,"a+",encoding="utf8") as lock:
+  os.fchmod(lock.fileno(),0o600)
+  fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  current=_load(lab.STATE,lab.previous_state())
+  try:lab.reserve(current)
+  except RuntimeError as exc:raise SharedBudgetExceeded("Daily shared Groq budget exhausted") from exc
+
+def execute(api=suggest,key_provider=stored_key,pacing_seconds=0,budget_hook=None):
  if os.getenv("SOFTMOBILE_AI_ENABLED")!="true":
   raise RuntimeError("Synthetic evaluation must be explicitly enabled")
  key=key_provider()
@@ -109,7 +124,8 @@ def execute(api=suggest,key_provider=stored_key,pacing_seconds=0):
    pref=expected_selection(buyer)
    row={"id":case["id"],"turn":step,"topic":topic,
       "valid":False,"memory_ok":False,"human_ok":False,
-      "topical":False,"claims_blocked":False,"repeated_prompt_blocked":False}
+      "topical":False,"actionable":False,"specific":False,"meaningful":False,
+      "claims_blocked":False}
    if provider_aborted:
     row["reason"]="not_run_provider_unavailable"
     rows.append(row)
@@ -117,6 +133,7 @@ def execute(api=suggest,key_provider=stored_key,pacing_seconds=0):
     continue
    try:
     if api_calls and pacing_seconds>0:time.sleep(pacing_seconds)
+    if budget_hook is not None:budget_hook()
     api_calls+=1
     proposed=api(cleaned,key)
     draft,blocked=guarded_draft(proposed,cleaned)
@@ -133,17 +150,21 @@ def execute(api=suggest,key_provider=stored_key,pacing_seconds=0):
     if pref["ambiguous"]:
      col_ok=col_ok and draft["human_review"] is True
     response=draft["suggested_reply"]
+    rubric=assess(response,topic)
     row.update({"valid":True,"memory_ok":bool(models_ok and cap_ok and col_ok),
        "human_ok":bool(effective_handoff(draft,must_human)),
-       "topical":bool(topic_matches(response,topic)),
+       "topical":bool(rubric["relevant"]),
+       "actionable":bool(rubric["actionable"]),
+       "specific":bool(rubric["specific"]),
+       "meaningful":bool(rubric["meaningful"]),
        "claims_blocked":bool(blocked)})
    except (PilotError,ValueError,RuntimeError,TypeError) as exc:
     row["reason"]=failure_category(exc)
-    if row["reason"] in {"provider_rate_limited","provider_server_error","provider_network_error"}:
+    if row["reason"] in {"provider_rate_limited","provider_server_error","provider_network_error","shared_daily_budget_exhausted"}:
      provider_aborted=True
    rows.append(row)
    prior.append(buyer)
- ok=lambda r: r["valid"] and r["memory_ok"] and r["human_ok"] and r["topical"]
+ ok=lambda r: r["valid"] and r["memory_ok"] and r["human_ok"] and r["topical"] and r["actionable"] and r["specific"] and r["meaningful"]
  return {"evaluated_at":datetime.now(timezone.utc).isoformat(),
   "fictional_journeys":len(JOURNEYS),"turns":len(rows),
   "api_calls":api_calls,"all_checks_passed":sum(ok(r) for r in rows),
@@ -151,6 +172,7 @@ def execute(api=suggest,key_provider=stored_key,pacing_seconds=0):
   "memory_errors":sum(r["valid"] and not r["memory_ok"] for r in rows),
   "missing_human_handoffs":sum(r["valid"] and not r["human_ok"] for r in rows),
   "off_topic":sum(r["valid"] and not r["topical"] for r in rows),
+  "unhelpful_or_bulk":sum(r["valid"] and not (r["actionable"] and r["specific"] and r["meaningful"]) for r in rows),
   "invalid_responses":sum((not r["valid"]) and r.get("reason")!="not_run_provider_unavailable" for r in rows),
   "provider_aborted":provider_aborted,
   "not_run_provider":sum(r.get("reason")=="not_run_provider_unavailable" for r in rows),
@@ -182,7 +204,7 @@ def main():
   os.fchmod(lock.fileno(),0o600)
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   reserve_real_run()
-  result=execute(pacing_seconds=2.0)
+  result=execute(pacing_seconds=2.0,budget_hook=reserve_shared_call)
  REPORT.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
  _atomic_json(REPORT,result)
  print(json.dumps(result,ensure_ascii=False))
