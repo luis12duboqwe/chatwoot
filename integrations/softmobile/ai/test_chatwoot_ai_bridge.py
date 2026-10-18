@@ -113,6 +113,13 @@ class BridgeTests(unittest.TestCase):
                         self.assertEqual(context_sent["color_options"],"azul")
                         self.assertEqual(context_sent["city"],"Choloma")
                         self.assertEqual(pn.call_count,1)
+                        private_note=pn.call_args.args[1]
+                        self.assertIn("Ficha comercial:",private_note)
+                        self.assertIn("Samsung S22 Ultra",private_note)
+                        self.assertIn("Color: azul",private_note)
+                        self.assertIn("Ciudad: Choloma",private_note)
+                        self.assertIn("NO ENVIADA AL CLIENTE",private_note)
+                        self.assertLess(len(private_note),1500)
                         self.assertEqual(sk.call_count,1)
 
     def test_sensitive_message_skips_without_calling_groq(self):
