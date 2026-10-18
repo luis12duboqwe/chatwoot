@@ -26,7 +26,8 @@ from sales_quality_gate import assess
 import synthetic_lab as lab
 
 MAX_CALLS=20
-MAX_REAL_RUNS_PER_DAY=2
+from groq_usage_policy import request_cap
+MAX_REAL_RUNS_PER_DAY=request_cap(2)
 STATE=Path(__file__).resolve().parent/".objections-run-state.json"
 LOCK=Path(__file__).resolve().parent/".objections-run.lock"
 REPORT=Path(__file__).resolve().parent/"quality"/"groq-objections-evaluation.json"

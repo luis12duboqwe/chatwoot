@@ -30,7 +30,8 @@ SCORE_HISTORY=DATA/"quality-score-history.json"
 ISSUE_PENALTIES={"unsafe_claim":65,"payment_choice_repeat":35,"payment_choice_ignored":35,"pickup_shipping_ambiguity":25,"color_change_ignored":30,"capacity_change_ignored":30,"exact_repeat":20,"finish_color_not_understood":25,"shipping_reference_ignored":30,"affirmation_repeated_summary":20}
 CONVERSATION_ID=3
 MAX_SCAN=60
-MAX_LLM_DAILY=12
+from groq_usage_policy import request_cap
+MAX_LLM_DAILY=request_cap(12)
 MAX_LLM_PER_RUN=3
 MARKER="SM_QUALITY_AUDIT_JSON="
 MAX_PREVIEW=420

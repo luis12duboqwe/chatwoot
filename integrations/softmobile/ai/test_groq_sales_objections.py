@@ -84,7 +84,7 @@ class ObjectionsTests(unittest.TestCase):
   from pathlib import Path
   from unittest.mock import patch
   with tempfile.TemporaryDirectory() as temp:
-   with patch.object(lab,"STATE",Path(temp)/"quota.json"):
+   with patch.object(lab,"STATE",Path(temp)/"quota.json"),patch.object(lab,"MAX_REAL_RUNS_PER_DAY",2):
     self.assertEqual(lab.reserve_real_run(),1)
     self.assertEqual(lab.reserve_real_run(),2)
     with self.assertRaises(RuntimeError):

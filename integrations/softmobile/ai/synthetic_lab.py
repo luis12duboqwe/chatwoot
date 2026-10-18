@@ -33,7 +33,8 @@ BOT=Path("/opt/softmobile-waha-test/sales-bot-v2.rb")
 DOCKER="softmobile-chatwoot-rails-1"
 MARK="SM_SYNTHETIC_LAB_JSON="
 CATEGORIES=["changes","checkout","shipping","payments","questions","objections","cancellation","financing","security","trust"]
-MAX_DAILY=160
+from groq_usage_policy import request_cap
+MAX_DAILY=request_cap(160)
 MAX_BATCH=4
 MAX_ISSUES=250
 BAD_REPLY=re.compile(
