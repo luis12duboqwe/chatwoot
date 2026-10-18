@@ -41,6 +41,20 @@ class JourneyMemoryTests(unittest.TestCase):
    "iPhone 15 Pro 256GB negro",
    "No quiero negro"]),
    {"model":"iPhone 15 Pro","storage_gb":256})
+ def test_negative_then_affirmative_color_update(self):
+  self.assertEqual(memory.history_snapshot([
+   "Busco iPhone 15 Pro 128GB negro","No quiero negro, mejor azul",
+   "¿Puedo pasar a Choloma?"]),
+   {"model":"iPhone 15 Pro","storage_gb":128,"color_options":"azul",
+    "city":"Choloma"})
+ def test_comparison_question_must_not_erase_selected_color(self):
+  self.assertEqual(memory.history_snapshot([
+   "Quiero iPhone 15 Pro 128GB negro","¿Y el azul cuesta lo mismo?",
+   "¿Cuándo puedo comprar?"]),
+   {"model":"iPhone 15 Pro","storage_gb":128,"color_options":"negro"})
+ def test_rejected_only_color_is_unselected(self):
+  self.assertEqual(memory.history_snapshot(["Quiero 256GB azul","No quiero azul"]),
+                   {"storage_gb":256})
  def test_no_history_sent_to_api(self):
   messages=["Busco iPhone 15 Pro 256GB negro","Mejor azul"]
   data=memory.history_snapshot(messages)
