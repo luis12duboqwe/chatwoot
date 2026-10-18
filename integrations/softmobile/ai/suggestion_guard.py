@@ -57,6 +57,13 @@ def _repeats_known_question(reply,clean):
              (color and ASK_COLOR.search(folded)))
 
 TOPIC_PATTERNS=(
+ ("comparison",re.compile(
+  r"\b(?:cuesta lo mismo|mismo precio|sale igual|diferencia (?:de precio|entre)|comparar|cu[aá]l cuesta m[aá]s)\b",re.I),
+  "Para comparar ambas variantes, un asesor debe verificar el precio de cada configuración antes de decirte si cuestan igual. ¿Querés que comparemos las dos opciones?"),
+ ("variant",re.compile(
+  r"\b(?:mejor|prefiero|cambio a|cambiemos a)\b.{0,35}\b(?:\d{2,4}\s*gb|blanco|negro|azul|verde|gris|dorado|rojo|plata)\b",re.I),
+  "Entiendo que preferís otra variante del equipo. Un asesor puede verificar el modelo, capacidad y color que elegiste, junto con el precio y disponibilidad antes de avanzar."),
+
  ("trade_in",re.compile(r"\b(?:parte de pago|reciben mi (?:celular|telefono|equipo)|entregar mi (?:celular|telefono)|canje|trade.?in)\b",re.I),
   "No tengo confirmada una opción para recibir tu teléfono como parte de pago. Un asesor debe revisar si existe esa posibilidad, sus condiciones y la valoración antes de ofrecerte algo."),
  ("payment",re.compile(r"\b(?:cuotas|financiamiento|financiar|credito|crédito|tarjetas?|sin prima|mensualidades|extrafinanciamiento|donde pago|dónde pago|forma de pago)\b",re.I),
@@ -69,11 +76,12 @@ TOPIC_PATTERNS=(
   "Antes de concretar la compra, un asesor debe confirmar por unidad la garantía, el estado y los accesorios incluidos. No puedo asegurar esas condiciones sin verificarlas."),
  ("price",re.compile(r"\b(?:descuento|más barato|mas barato|presupuesto|promoción|promocion|precio|cuanto cuesta|cuánto cuesta|efectivo)\b",re.I),
   "Entiendo que buscás una opción que se ajuste a tu presupuesto. Un asesor debe verificar el precio actual de la unidad y si existe alguna alternativa o promoción."),
- ("purchase",re.compile(r"\b(?:quiero comprarlo|listo para comprar|lo compro|lo llevo|quiero llevarlo|apartarlo|apartame|apártamelo|reservarlo|reserva)\b",re.I),
+ ("purchase",re.compile(r"\b(?:quiero comprarlo|listo para comprar|lo compro|lo llevo|quiero llevarlo|apartarlo|apartame|apártamelo|reservarlo|reserva|llev[aá]rmelo|me lo apartan|me lo reservan|lo quiero comprar|lo quiero llevar)\b",re.I),
   "Para avanzar con la compra, un asesor debe confirmar la unidad elegida, disponibilidad, precio y forma de entrega antes de generar cualquier compromiso.")
 )
+TRADE_IN_PATTERN=next(pattern for name,pattern,_ in TOPIC_PATTERNS if name=="trade_in")
 TRADE_IN_REPLY_KEYS=("parte de pago","canje","valoracion","valoración","recibir tu celular","recibir el celular","tomar tu celular")
-RUBRIC_BY_TOPIC={"trade_in":"trade_in","payment":"payment","shipping":"shipping",
+RUBRIC_BY_TOPIC={"comparison":"comparison","variant":"product","trade_in":"trade_in","payment":"payment","shipping":"shipping",
  "inspection":"inspection","warranty":"warranty","price":"budget","purchase":"closing"}
 
 def _buyer_topic(clean):
@@ -114,7 +122,7 @@ def guarded_draft(output,clean=None):
  if (quality is not None and not all(quality[k] for k in ("relevant","actionable","specific","meaningful"))) or (HARD_CLAIMS.search(reply) or FIGURES.search(reply) or
      CREDENTIALS.search(reply) or _repeats_known_question(reply,clean) or
      (isinstance(clean,dict) and isinstance(clean.get("message"),str) and
-      TOPIC_PATTERNS[0][1].search(clean["message"]) and
+      TRADE_IN_PATTERN.search(clean["message"]) and
       not any(key in _fold(reply) for key in TRADE_IN_REPLY_KEYS))):
   repaired=dict(output)
   repaired.update({"suggested_reply":_topic_fallback(clean),"human_review":True})
