@@ -701,3 +701,51 @@ reales.
 
 Solo pruebas reales autorizadas de recepción y envío en el dispositivo
 piloto podrían justificar ampliar cobertura a otras bandejas.
+
+## Fase 10 — Retroalimentación y reintentos limitados para parches Groq
+
+El generador de propuestas para revisión (`patch_proposer.py`) ahora utiliza
+`proposal_iteration.py` para intentar corregir un problema **hasta dos
+veces por ejecución**, y **cuatro intentos por día UTC** entre ejecuciones.
+Todos los intentos comparten además el límite diario global de Groq con los
+laboratorios anteriores.
+
+Después del primer rechazo, el segundo intento recibe exclusivamente
+retroalimentación **fija y autorizada** del validador:
+- error estático del reemplazo y de la estructura JSON;
+- sintaxis Ruby inválida;
+- regresiones en 30 conversaciones de color/capacidad;
+- regresiones en 150 variaciones adicionales;
+- pruebas generales Ruby fallidas (117 casos);
+- parche repetido exactamente sin modificación útil.
+
+El generador **no envía logs internos, rutas privadas, claves ni datos de
+clientes**. Solo ingresa en la API la conversación ficticia y un método de
+código previamente autorizado para revisión. Los parches propuestos que
+superen los controles solo se guardan como diferencias y reportes privados:
+siguen marcados como `review_ready_not_deployed`. No pueden ejecutarse
+como Ruby en el contenedor activo ni instalarse de manera autónoma.
+
+Los `test_proposal_iteration.py` incluyen siete nuevas verificaciones
+del ciclo de reintentos, el bloqueo por presupuesto, indisponibilidad API,
+parches duplicados, filtrado estático, pruebas de comportamiento/regresión y
+ausencia de despliegues. Total actualizado: **150/150 pruebas Python locales**.
+
+### Error de CI corregido
+
+La ejecución GitHub Actions del commit anterior había fallado porque la
+prueba `test_sandbox_review.py` leía las suites Ruby desde la ruta
+`/opt/softmobile-waha-test/laboratorio-ia/quality/` del VPS. En un
+runner GitHub esa ruta no existe. El test ahora simula el contenido de esas
+suites para comprobar el comando de contenedor sin depender de archivos
+privados. El CI sigue revisándose por separado; no se debe inferir que
+ha pasado solo porque las pruebas locales terminan con éxito.
+
+Al momento de esta actualización, el laboratorio agotó sus **cuatro**
+intentos de generación de código correspondientes al 18 de octubre UTC.
+La ejecución solicitada retornó `daily_proposal_cap` sin efectuar nuevas
+llamadas ni modificar producción. Los nueve timers VPS y la exclusividad
+de Chatwoot cuenta 2, bandeja 2, conversación 3 siguen verificados.
+
+Los cambios de código de alcance desconocido continúan requiriendo
+revisión humana y no pueden ser instalados por el automejorador de reglas.
