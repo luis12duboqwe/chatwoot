@@ -1,30 +1,38 @@
-# Auditoría de calidad conversacional — SoftMobile (18 octubre 2026, UTC)
+# SoftMobile — revisión de respuestas comerciales (18 octubre 2026 UTC)
 
-**Estado: propuesta aislada, no desplegada.** Los cambios de este PR están guardados exclusivamente como un archivo `.patch` y evidencia `.json`.
+**Estado:** propuesta de código y pruebas, sin despliegue. Este PR no altera el vendedor activo de Chatwoot.
 
-## Tres defectos tratados
+## Problemas corregidos en el candidato
 
-1. **Garantía + accesorios + condición del teléfono.** Un comprador pregunta por plazo/cobertura de garantía, regalías o accesorios y si el equipo es nuevo o usado. El bot respondía a una sola pregunta y olvidaba las demás. La propuesta recoge los tres datos pendientes y deriva a un asesor sin inventar estado o accesorios.
-2. **Plazo de entrega.** Preguntas como «¿en qué plazo entregan una vez que pago?» o «¿cuál es el tiempo estimado de entrega?» eran clasificadas erróneamente o recibían respuestas genéricas. La propuesta solicita ciudad y confirma que los plazos dependen de stock y transporte.
-3. **Seguimiento y cambios.** «¿Cuándo llegará mi pedido?» solicita número de pedido o guía y verificación humana. «¿Qué tiempo tardaría el cambio?» después de elegir una variante exige verificar plazo y disponibilidad, en lugar de repetir la última pregunta sobre la ciudad.
+1. Preguntas combinadas sobre **garantía, accesorios y estado nuevo/usado**, que antes quedaban contestadas parcialmente.
+2. Preguntas sobre **plazo de entrega** antes de comprar, para las que el bot debe confirmar disponibilidad, destino y transporte sin inventar fechas.
+3. Preguntas sobre **seguimiento de pedidos ya pagados** y cuánto tardaría un **cambio de color, capacidad o modelo**.
 
-## Evidencia aislada
+### Segunda ronda adversarial
 
-Se reprodujeron **16 diálogos sintéticos** en dos instancias Docker efímeras independientes (bot activo y versión candidata), con `--network none`, raíz de solo lectura, usuario sin privilegios, sin montajes ni credenciales del VPS.
+La primera prueba de 16 conversaciones consiguió corregir 7 casos, pero una ronda ampliada reveló dos regresiones: garantías por accesorios ya dañados se confundían con dudas previas a la compra. El parche fue revisado para separar ambos contextos. Se añadieron variantes de lenguaje y controles de reparaciones, reclamaciones, fotos, financiamiento y stock.
 
-- **7 fallas de conversación corregidas.**
-- **9 diálogos de control sin regresiones ni cambios de respuesta.**
-- **117/117 regresiones comerciales Ruby aprobadas en el candidato.**
-- **150/150 pruebas Python locales existentes aprobadas.**
-- Sin mensajes públicos enviados a WhatsApp, sin consulta de inventario real, sin ejecución en el contenedor Chatwoot que atiende clientes.
-- Se capturó huella SHA-256 del código activo y de la candidata en la evidencia de este PR.
+**Resultado definitivo de la candidata:**
 
-## Condiciones de seguridad
+| Evaluación | Resultado |
+|---|---:|
+| Conversaciones ficticias en contenedor aislado | 42 |
+| Respuestas incorrectas corregidas | 19 |
+| Casos de control sin regresiones | 23 |
+| Casos nuevos sin resolver del objetivo probado | 0 |
+| Pruebas comerciales Ruby del candidato | 117/117 |
+| Pruebas Python locales del laboratorio | 153/153 |
 
-La propuesta **no asegura** disponibilidad, precio, promociones, seguro, accesorios, garantía específica, estado nuevo/usado, fecha de entrega ni aprobación de cambios. Todas las afirmaciones concretas requieren confirmación del personal encargado y de la unidad.
+Se ejecutaron dos versiones del motor Ruby por separado en contenedores efímeros con `--network none`, sin montajes del VPS, con raíz de solo lectura, usuario no privilegiado y recursos limitados. **No se enviaron mensajes a clientes ni se consultó inventario real.**
 
-La promoción está **bloqueada** hasta revisión independiente y autorización: el sistema ya utilizó su límite de una instalación automática diaria. No cambiar esta limitación ni fusionar el PR automáticamente.
+### Evidencia y límites
 
-## Pendientes antes de expandir
+- `20261018-conversation-quality.patch`: únicamente diferencias de texto; no son código aplicado.
+- `20261018-conversation-quality-report.json`: resultados y huellas SHA-256 del código original y candidato.
+- `prepare_conversation_quality.py`, `evaluate_conversation_quality.py`, `test_conversation_quality_extended.py`: lógica de construcción, evaluación y casos portables de seguridad.
+- Sigue pendiente **revisión humana independiente** de la política comercial y de las coincidencias lingüísticas. Los 42 casos no prueban capacidad de venta ni cubren todas las frases posibles.
+- Toda garantía, promoción, estado de la unidad, plazo de entrega, precio o accesorio concreto debe confirmarse por una persona autorizada.
+- No fusionar ni desplegar automáticamente. No ampliar la bandeja piloto a clientes generales.
+- El [PR #3](https://github.com/luis12duboqwe/chatwoot/pull/3) sobre variantes de color/capacidad es independiente.
 
-Revisar frases alternativas no cubiertas por los 16 escenarios, hacer nuevas conversaciones del piloto con un comprador real, probar derivaciones humanas y observar métricas de cierre sin depender exclusivamente de un evaluador LLM. Las mejoras de color/capacidad siguen en el PR #3 separado; este PR no las incluye.
+**Nota:** una ejecución de CI con pruebas unitarias sin secretos verifica reproducibilidad, pero por sí sola no vuelve a ejecutar las pruebas Ruby del VPS. Ambas evidencias deben evaluarse por separado.
