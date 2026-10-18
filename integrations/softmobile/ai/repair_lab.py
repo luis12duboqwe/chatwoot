@@ -18,6 +18,7 @@ import re
 import sys
 import tempfile
 
+import promotion_budget
 import auto_improver as fixer
 import synthetic_lab as lab
 from configurar_clave_groq import stored_key
@@ -193,7 +194,8 @@ def evaluate(issues,state,key,deploy_enabled=False):
  if deploy_enabled:
   entries=_load(HISTORY,[])
   day=datetime.now(timezone.utc).date().isoformat()
-  if sum(x.get("day")==day and x.get("promoted") for x in entries)>=MAX_DAILY_DEPLOYS:
+  if (sum(x.get("day")==day and x.get("promoted") for x in entries)>=MAX_DAILY_DEPLOYS
+      or promotion_budget.exhausted(day)):
    return {"status":"deployment_cap_reached","promoted":False}
  pack=current_pack()
  pick=eligible(issues,pack["families"])
@@ -223,7 +225,8 @@ def evaluate(issues,state,key,deploy_enabled=False):
   return response
  history=_load(HISTORY,[])
  day=datetime.now(timezone.utc).date().isoformat()
- if sum(x.get("day")==day and x.get("promoted") for x in history)>=MAX_DAILY_DEPLOYS:
+ if (sum(x.get("day")==day and x.get("promoted") for x in history)>=MAX_DAILY_DEPLOYS
+     or promotion_budget.exhausted(day)):
   response["status"]="deployment_cap_reached";return response
  # Cross-check that the synthetic conversation is still eligible after running
  # the extensive gate and that the staged code has not been replaced.

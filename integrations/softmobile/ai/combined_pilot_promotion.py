@@ -15,6 +15,7 @@ import fcntl,hashlib,json,os,sys
 from pathlib import Path
 import tempfile
 
+import promotion_budget
 from quality_auditor import _load,_atomic_json
 import autonomous_learning as learner
 import semantic_generalization as semantic
@@ -189,7 +190,7 @@ def independent_quality_approved(candidate):
 def promote(installer=fixer.deploy,validator=evidence):
  day=datetime.now(timezone.utc).date().isoformat()
  now=datetime.now(timezone.utc).isoformat()
- if deployed_today(day)>=DAILY_CAP:
+ if deployed_today(day)>=DAILY_CAP or promotion_budget.exhausted(day):
   return {"at":now,"status":"daily_deployment_cap","promoted":False}
  current=learner.BOT.read_text()
  if semantic.SIGN in current and finance.NEW in current:

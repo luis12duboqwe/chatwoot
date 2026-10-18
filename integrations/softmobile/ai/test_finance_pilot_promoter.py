@@ -15,7 +15,7 @@ class FinancePromotionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    bot=Path(d)/"bot.rb";bot.write_text("malicious source drift")
    install=Mock()
-   with patch.object(f.bundled,"deployed_today",return_value=0),patch.object(f.learner,"BOT",bot):
+   with patch.object(f.bundled,"deployed_today",return_value=0),patch.object(f.learner,"BOT",bot),patch.object(f.promotion_budget,"exhausted",return_value=False):
     x=f.promote(installer=install)
    self.assertEqual(x["status"],"source_changed")
    install.assert_not_called()
