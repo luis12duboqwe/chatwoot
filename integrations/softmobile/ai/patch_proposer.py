@@ -163,22 +163,29 @@ def run(api=lab.api_json):
         "candidate_pass":behavior["candidate_pass"],
         "regressed":behavior["regressed"],"auto_deploy":False}
     else:
-     suite=gates(candidate)
-     if suite["status"]!="passed":
-      result={"status":"rejected_full_regression","issue_id":issue["id"],
-          "failed_suite":suite.get("suite"),"auto_deploy":False}
+     from sandbox_stress import analyze
+     stress=analyze(original,candidate)
+     if stress["status"]!="stress_passed":
+      result={"status":"rejected_independent_stress","issue_id":issue["id"],
+          "stress_regressions":stress["regressions"],"auto_deploy":False}
      else:
-      saved=stage(original,candidate,proposed,issue)
-      saved["status"]="isolated_behavior_passed_human_review_required"
-      saved["sandbox_behavior"]=behavior
-      saved["sandbox_ruby_suite"]=suite
-      saved["model_code_executed"]=True
-      saved["model_code_execution_environment"]="isolated network-disabled disposable container only"
-      saved["automatic_deployment_allowed"]=False
-      _atomic_json(STAGE/(saved["proposal_id"]+".json"),saved)
-      result={"status":"review_ready_not_deployed","issue_id":issue["id"],
-         "proposal_id":saved["proposal_id"],"passed_ruby":suite["total"],
-         "model_code_executed_only_in_sandbox":True,"automatic_deployment_allowed":False}
+      suite=gates(candidate)
+      if suite["status"]!="passed":
+       result={"status":"rejected_full_regression","issue_id":issue["id"],
+           "failed_suite":suite.get("suite"),"auto_deploy":False}
+      else:
+       saved=stage(original,candidate,proposed,issue)
+       saved["status"]="isolated_behavior_passed_human_review_required"
+       saved["sandbox_behavior"]=behavior
+       saved["sandbox_independent_stress"]=stress
+       saved["sandbox_ruby_suite"]=suite
+       saved["model_code_executed"]=True
+       saved["model_code_execution_environment"]="isolated network-disabled disposable container only"
+       saved["automatic_deployment_allowed"]=False
+       _atomic_json(STAGE/(saved["proposal_id"]+".json"),saved)
+       result={"status":"review_ready_not_deployed","issue_id":issue["id"],
+          "proposal_id":saved["proposal_id"],"passed_ruby":suite["total"],
+          "model_code_executed_only_in_sandbox":True,"automatic_deployment_allowed":False}
   record={"day":day,"at":datetime.now(timezone.utc).isoformat(),**result}
   past.append(record);_atomic_json(HISTORY,past[-60:]);_atomic_json(SUMMARY,record)
   return record
