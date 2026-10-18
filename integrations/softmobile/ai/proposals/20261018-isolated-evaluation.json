@@ -1,0 +1,54 @@
+{
+  "scenarios": 30,
+  "baseline_pass": 23,
+  "candidate_pass": 30,
+  "fixed": [
+    "fallback-first",
+    "fallback-second",
+    "buyer-real-1",
+    "buyer-real-2",
+    "prefer-first-else-second",
+    "more-than-two-colors",
+    "conditional-blue-red-price"
+  ],
+  "regressed": [],
+  "both_incorrect": [],
+  "changed": [
+    "fallback-first",
+    "fallback-second",
+    "buyer-real-1",
+    "buyer-real-2",
+    "prefer-first-else-second",
+    "more-than-two-colors",
+    "conditional-blue-red-price"
+  ],
+  "status": "review_ready",
+  "live_bot_modified": false,
+  "client_messages_sent": 0,
+  "independent_stress": {
+    "scenarios": 150,
+    "baseline_pass": 60,
+    "candidate_pass": 150,
+    "fixed": 90,
+    "regressions": [],
+    "still_incorrect": [],
+    "status": "stress_passed",
+    "live_bot_modified": false
+  },
+  "ruby_regression_gate": {
+    "status": "passed",
+    "tests": {
+      "engine": 57,
+      "regression": 5,
+      "historical": 7,
+      "journeys": 20,
+      "pilot": 11,
+      "payment": 2,
+      "future": 15
+    },
+    "total": 117
+  },
+  "at": "2026-10-18T00:35:03.555294+00:00",
+  "proposal_file": "proposal-6080c2a5b31ef5b2a9-d8f33eda.diff",
+  "base_sha256": "c4f66175bcd88a8230dc03aef3f663a6b86e847ec2cd933484afd3291c84b3c3"
+}
