@@ -16,7 +16,7 @@ import tempfile
 
 from configurar_clave_groq import stored_key
 from groq_pilot import PilotError, prepare, suggest
-from sales_context import preference_snapshot
+from journey_memory import history_snapshot
 from suggestion_guard import guarded_draft
 
 ROOT = Path(__file__).resolve().parent
@@ -179,7 +179,7 @@ def run_once():
     save_state(state)  # Count before API to bound worst-case expenditure.
     try:
         clean = prepare({"conversation_id": CONV_ID, "message": msg["content"],
-                         "context": preference_snapshot(msg.get("history", []))})
+                         "context": history_snapshot(msg.get("history", []))})
         output = suggest(clean, stored_key())
         output, _was_guarded = guarded_draft(output, clean)
         result = put_private(str(ident), format_note(str(ident), output))
