@@ -749,3 +749,266 @@ de Chatwoot cuenta 2, bandeja 2, conversación 3 siguen verificados.
 
 Los cambios de código de alcance desconocido continúan requiriendo
 revisión humana y no pueden ser instalados por el automejorador de reglas.
+
+## Groq private copilot: bounded memory + claim guard (18 October 2026 UTC)
+
+This iteration improves the *commercial assistant*, not the source-patch lab.
+The existing `chatwoot_ai_bridge.py` remains exclusively scoped to Chatwoot
+account 2 / inbox 2 / pilot conversation 3; it creates **PRIVATE** internal
+agent notes only, never public replies.
+
+- Incoming source now retrieves up to four previous **public incoming buyer
+  messages** in the same verified conversation. It does not retrieve private
+  notes or other inboxes. Older messages longer than 420 chars or containing
+  attachments are never considered for memory.
+- `sales_context.py` never forwards those previous messages verbatim. It
+  derives only allowlisted model, storage, one unambiguous color and known city.
+  Messages containing email, phone, bank/payment details, precise address,
+  credentials or order numbers are discarded before context extraction.
+- `suggestion_guard.py` blocks high-confidence unsupported claims (exact
+  price/amount, delivery time, reserved stock, guarantee of approval,
+  included accessories or insurance, requests for sensitive credentials).
+  A risky Groq suggestion is replaced with a generic *private* assistant
+  draft requiring a human, not sent to the buyer.
+- The newest buyer message is still independently checked by the existing
+  sensitive-content filter; the bridge skips stale/short/private/multimedia
+  messages and limits usage to 30 suggestions per UTC day.
+- The new context reader was verified as valid Ruby syntax and performed a
+  **read-only** Rails query on the authorized pilot. No actual customer text
+  or credentials were printed or transferred to this report.
+
+Tests: **162/162** local Python tests pass, including nine new privacy/claim
+cases and bridge integration tests. Two **fictitious** live Groq API probes
+passed: a 128GB black -> 256GB blue customer correction retained the right
+new capacity/color, and a warranty+accessories answer triggered the safety
+fallback. Neither probe wrote a Chatwoot message.
+
+This change intentionally **does not enable Groq to send public customer
+messages**. The existing rule-based public bot and its 117-case Ruby test
+suite remain separate; PR #4 has 42 independent dialogue scenarios and is
+still pending independent human review.
+
+## Groq vendedor — interpretación de opciones y evaluación sombra (18 Oct 2026 UTC)
+
+El piloto sigue **sólo en notas privadas** para el asesor. No se activó el
+envío público por Groq, no se cambió el código Ruby del bot, no se modificó
+inventario ni se realizaron ventas o mensajes reales.
+
+### Preferencias de compra
+- `variant_preference.py` distingue preferencia explícita de comparaciones,
+  una alternativa condicional, un rechazo y preguntas ambiguas. No asume que
+  el **último producto mencionado** siempre es el elegido.
+- `groq_pilot.py` transmite `selected_preference` calculado sobre el mensaje
+  ficticio/filtrado y exige coherencia de color y capacidad cuando hay una
+  selección clara. Si hay dos variantes y ninguna elección unívoca, fuerza
+  revisión humana y nunca elige una sin confirmación.
+- Se mejoró el prompt para no confundir una comparación de precios con una
+  nueva elección del comprador.
+
+### Calidad de sugerencias
+- `suggestion_guard.py` también rechaza afirmaciones no comprobadas de
+  disponibilidad, reserva, regalos, cargadores, seguro, entrega inmediata
+  o aprobación bancaria. Su respuesta de respaldo ya no vuelve a
+  preguntar qué modelo busca el cliente: solicita verificación de los datos
+  comerciales pendientes sin inventar políticas.
+
+### Pruebas con Groq REAL usando datos ficticios (sin clientes)
+Se ejecutó `groq_sales_shadow.py --run` dos veces con **siete**
+consultas fijas: cambio de capacidad/color, preferencia frente a comparación,
+alternativa si no hay stock, ambigüedad, garantía con accesorios, plazo de
+entrega e intención nueva.
+- Primera evaluación: **4/7** propuestas estructuradas válidas y
+  controladas; 3 fueron rechazadas, 1 sugerencia bloqueada por el filtro.
+- Tras añadir selección explícita determinística a la entrada:
+  **7/7** propuestas válidas, **7/7** preferencias o escalaciones esperadas,
+  2 sugerencias reemplazadas por respuesta interna prudente.
+- Un resultado bueno en 7 escenarios no implica una tasa real de éxito
+  ni autoriza respuestas públicas.
+- `groq_sales_shadow.py` guarda **solo indicadores fijos y agregados** de
+  los casos ficticios; no guarda las salidas redactadas del proveedor ni
+  texto de clientes reales, ni realiza escrituras a Chatwoot.
+- `test_variant_preference.py` y `test_groq_sales_shadow.py` son pruebas
+  independientes y reproducibles con mocks; **173/173** pruebas Python
+  locales aprobadas antes de sincronizar la rama con GitHub.
+- Las pruebas CI sólo verifican módulos offline: no acceden a Groq,
+  Chatwoot ni al VPS y no validan WhatsApp real.
+
+Pendiente: ampliar la muestra independiente de conversaciones comerciales,
+verificar la entrega real del canal piloto, conectar el inventario con
+control de existencias y demostrar una mejora medible antes de habilitar
+autorespuestas en producción.
+
+### Additional quality gate — repeated buyer questions (18 Oct 2026 UTC)
+
+The private Groq suggestion guard now accepts the sanitized message and
+allowlisted context through `guarded_draft(output,clean)`, and rejects
+asking again for a model, color or capacity the buyer already provided.
+When it rejects such a draft, it produces a private, human-review-required
+fallback that does not ask the same question again. The fallback never
+states that a model, color or shipping route is available.
+
+This applies only to the agent's INTERNAL private Chatwoot note, not
+outgoing WhatsApp replies. No change to live Ruby bot or its send policy.
+
+New offline tests cover duplicate model, GB and color prompts and legitimate
+pickup/delivery follow-ups. **175/175 Python tests** pass on VPS.
+Re-executed seven synthetic Groq API prompts with the final code: **7/7**
+structured responses met preference and handoff requirements; two claims
+were blocked. This is a small synthetic sample, not a success rate in
+commercial production. Private aggregate results only were persisted.
+
+## Prueba multipaso: Groq vendedor privado (18 oct 2026, UTC)
+
+Esta etapa evaluó CUATRO conversaciones ficticias completas de TRES mensajes
+cada una, conectadas a la API real de Groq, sin Chatwoot ni WhatsApp. Los
+escenarios fueron: alternativa por falta de una variante y retiro en Choloma;
+comparación de precios sin perder el teléfono elegido y pregunta de garantía;
+cambio de opinión y consulta para probar una unidad antes de pagar; y
+comparación ambigua que termina en una selección y consulta de entrega.
+
+Se detectó antes de llamar a la API que `preference_snapshot` perdía la
+variante seleccionada al procesar frases como «Si no hay 512GB negro,
+mejor 256GB azul» antes de una pregunta logística. Se añadió
+`journey_memory.py`: memoria determinística y minimizada de hasta cuatro
+mensajes previos; evita sustituir la elección por la variante de una
+pregunta comparativa y elimina elecciones ambiguas. Sigue descartando
+mensajes con identificadores personales o información de pagos.
+
+Primera prueba real con Groq: 10/12 turnos superaron todos los controles,
+con cero errores de memoria, cuatro afirmaciones no verificadas interceptadas
+y dos fallos de derivación humana (retiro en tienda y prueba previa).
+Se amplió el enrutamiento de temas sensibles de `groq_pilot.py` para forzar
+`human_review=true` en retiro, prueba antes de pagar y entrega.
+
+Segunda ejecución real (mismos escenarios): **12/12 turnos aprobados**,
+cero errores de memoria, tres afirmaciones comerciales interceptadas y
+derivación humana correcta en los turnos que la requerían. Se ejecutaron
+**188/188 pruebas Python locales**. El script conserva únicamente métricas
+por ID ficticio y nunca redactados originales de Groq.
+
+Fuentes: `groq_sales_journeys.py`, `test_groq_sales_journeys.py`,
+`journey_memory.py` y `test_variant_preference.py`.
+El CI ejecuta pruebas unitarias sin API keys y NO repite las solicitudes
+reales a Groq.
+
+La **IA aún no envía respuestas públicas**; sólo funciona el copilot que
+escribe notas internas de asesores en la conversación piloto autorizada.
+No hay transacciones, inventario integrado, reservas, WhatsApps a clientes
+ni despliegue nuevo del motor Ruby. Los resultados corresponden a una
+muestra sintética reducida, no a efectividad real de cierre de ventas.
+
+## Fase: objeciones y conversaciones comerciales de 5 turnos (18 oct 2026 UTC)
+
+Se verificaron **4 conversaciones de cinco mensajes ficticios cada una**
+mediante la API real de Groq, SIN escribir en Chatwoot ni WhatsApp. Temas:
+presupuesto, descuento, condición del equipo, financiación a cuotas,
+garantía, objeción por precio de otro vendedor, cambios de variante,
+comparación de precios, entrega, parte de pago, revisión física y
+disposición final de compra.
+
+### Fallos detectados y corregidos
+
+- Memoria `journey_memory.py`: «No quiero negro, mejor azul» conservaba
+  el negro; «¿Y el azul cuesta lo mismo?» sustituía la selección anterior
+  aunque fuera solo una comparación. Ahora actualiza ante una preferencia
+  afirmativa y conserva la elección en preguntas comparativas. Un rechazo
+  sin sustitución elimina el color rechazado.
+- `groq_pilot.py`: una pregunta sobre el precio de la segunda variante
+  ya NO se etiqueta como nueva elección. El JSON de entrada agrega
+  `comparison_only` y no fuerza `selected_preference` cuando se trata
+  exclusivamente de comparación. El validador mantiene la variante
+  previamente elegida o rechaza la propuesta y exige verificación humana
+  del estado nuevo/usado.
+- `suggestion_guard.py`: cuando una respuesta contiene precio, stock,
+  regalo, envío o financiamiento no verificados, el fallback privado
+  responde a la **objeción concreta** (precio, cuotas, descuento,
+  garantías, entrega, inspección, parte de pago, compra) en vez de
+  devolver siempre el mismo texto genérico. También intercepta una
+  consulta por parte de pago si el borrador ignoró esa intención.
+- `groq_sales_objections.py`: evaluación con límite estricto de 20
+  peticiones por ejecución, ritmo de 2 segundos entre peticiones en
+  `--run`, máximo 2 ejecuciones reales por día UTC, y aborto seguro
+  cuando hay errores HTTP 429/5xx o red. Las pruebas no envían
+  mensajes públicos. No se guardan respuestas ni chats de usuarios.
+
+### Evidencia
+
+1. Primera ronda real: **16/20** turnos superaron las comprobaciones;
+   1 pérdida de preferencia, 1 derivación humana omitida y 2 respuestas
+   poco relacionadas con la objeción. Se bloquearon 3 afirmaciones.
+2. Segunda ronda sin pausas: **12/20** aceptadas; 8 solicitudes fallaron
+   (proveedor o validación, causa no distinguida en el registro antiguo).
+   Estos 8 rechazos NO se contaron como fallos comerciales y motivaron
+   clasificar errores de API y reducir la velocidad de ejecución.
+3. Tercera ronda real con pausas y las correcciones: **20/20** cumplen el
+   control de memoria, tema relevante y derivación humana; **0** fallos
+   de memoria, **0** omisiones de derivación, **0** respuestas fuera de
+   tema según palabras-clave y **3** afirmaciones comerciales
+   interceptadas. Ningún error de proveedor en esa ejecución.
+4. **204/204 pruebas Python locales** aprobadas, incluidas pruebas de
+   presupuesto por día, interrupción tras error 429, fallos estructurados,
+   tratamiento de rechazo de color, comparación sin cambio de elección,
+   decisiones sensibles y fallback temático.
+
+El resultado indica conformidad en **esta muestra fija ficticia**, NO tasa
+de cierre real, ni calidad subjetiva de cada respuesta. Se utiliza
+evaluación con reglas determinísticas simples de tema, no una validación
+de ventas reales por un juez humano independiente. No hay integración
+de inventario, precios verificados ni autorización para autoenviar
+mensajes de Groq. El bot Ruby activo y el parche conversacional PR #4
+siguen sin cambios ni nuevas implementaciones de esta fase.
+
+## Evaluación estricta de ventas, calidad y límite compartido — 18 oct 2026 UTC
+
+Se revisó el resultado anterior de **20/20** conversaciones ficticias de cinco
+turnos. Aquella puntuación sólo medía coherencia de producto, palabra clave
+del tema y derivación humana; era demasiado permisiva para afirmar que la
+respuesta resultaba comercialmente útil. Este hallazgo motivó una batería
+independiente, no una extensión de capacidad productiva.
+
+### Medidas implantadas
+- `sales_quality_gate.py`: filtro de calidad determinístico, para
+  relevancia, siguiente paso accionable, detalle suficiente y rechazo de
+  respuestas con una lista indiscriminada de palabras clave o frases vagas.
+  Se reconoce que un criterio lexical tiene falsos positivos/negativos:
+  **no equivale a evaluación de un vendedor humano**.
+- `groq_sales_objections.py` combina este filtro con coherencia de
+  modelo/color/capacidad, derivación humana, estado de proveedor y detección
+  de afirmaciones comerciales no verificadas. No guarda el contenido de
+  las respuestas de Groq: sólo marcas de calidad y categorías fijas.
+- `suggestion_guard.py`: en las sugerencias PRIVADAS del asistente
+  para un asesor, reemplaza borradores no pertinentes, vacíos, repetitivos
+  o genéricos por una respuesta prudente relacionada con el motivo de la
+  consulta (precio, cuotas, entrega, garantía, prueba, canje o intención de
+  compra). Esta capa no aplica código al bot Ruby ni envía WhatsApps.
+- Las ejecuciones reales de 20 consultas comparten ahora el presupuesto
+  local de **160 llamadas Groq por día UTC** de `synthetic_lab.py`;
+  la reserva individual es atómica y protegida por el mismo bloqueo.
+  Si el límite o el proveedor falla, la evaluación se detiene sin
+  reintentos masivos. Además, límite de 2 ejecuciones reales de este
+  evaluador por día, con 2 segundos entre llamadas.
+- `test_sales_quality_gate.py` y extensiones de otras pruebas
+  verifican rechazos de respuestas irrelevantes, mensajes con demasiadas
+  palabras comerciales, preservación de respuestas válidas y cuota
+  compartida sin acceso a la API.
+
+### Evidencia de Groq y límites
+- Bajo el criterio anterior: **20/20** respuestas válidas en una muestra
+  ficticia; indicador insuficiente para evaluar capacidad comercial.
+- Bajo el criterio nuevo: **7/20** superaron todos los controles, 20/20
+  cumplieron formato, las preferencias y derivaciones; **2 fuera de tema**
+  y **12 sin suficiente acción o especificidad** (categorías que pueden
+  solaparse). **3** afirmaciones comerciales fueron bloqueadas.
+  No hubo fallos de conexión al proveedor en esta segunda ejecución.
+- La respuesta a este hallazgo fue añadir filtros de calidad a las notas
+  privadas, no habilitar el envío automático.
+- **229/229** pruebas Python locales aprobaron después de los cambios.
+  Las pruebas de GitHub se ejecutan offline y no hacen llamadas Groq;
+  el CI del commit actual debe verificarse por separado.
+
+Este resultado NO implica 35% de ventas ni justifica aumentar permisos.
+Para producción quedan pendientes un inventario autorizado, control de
+precios reales, verificaciones de cierre, revisión de asesores y pruebas
+reales limitadas a la cuenta/bandeja/conversación piloto (2/2/3).
+No hay mensajes al cliente, pedidos, inventario o cobros modificados por
+el laboratorio de evaluación.

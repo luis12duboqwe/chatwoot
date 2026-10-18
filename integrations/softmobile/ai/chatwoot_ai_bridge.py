@@ -16,6 +16,9 @@ import tempfile
 
 from configurar_clave_groq import stored_key
 from groq_pilot import PilotError, prepare, suggest
+from journey_memory import history_snapshot
+from suggestion_guard import guarded_draft
+from lead_handoff import private_lead_summary
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / ".pilot_bridge_state.json"
@@ -51,7 +54,8 @@ def get_next(after_id):
 c=Conversation.find_by(id:{CONV_ID})
 raise 'unexpected account/inbox' unless c && c.account_id=={ACCOUNT_ID} && c.inbox_id=={INBOX_ID}
 m=c.messages.where(message_type: :incoming, private: false).where('id > ?', {after_id}).reorder(id: :desc).first
-puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], age_seconds:(Time.now.utc-m.created_at).to_i, has_attachments:m.attachments.exists?}} : {{id:nil}}).to_json
+prior=m ? c.messages.where(message_type: :incoming, private: false).where('id < ?',m.id).reorder(id: :desc).limit(4).reverse.map{{|older| older.attachments.exists? || older.content.to_s.length>420 ? nil : older.content.to_s}} : []
+puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], age_seconds:(Time.now.utc-m.created_at).to_i, has_attachments:m.attachments.exists?, history:prior}} : {{id:nil}}).to_json
 """
     return rails_run(program)
 
@@ -140,10 +144,12 @@ def save_state(data):
         if os.path.exists(dest):
             os.unlink(dest)
 
-def format_note(marker, output):
+def format_note(marker, output, clean=None):
     reply = output["suggested_reply"].replace("\n", " ").strip()
+    summary = private_lead_summary(clean) + "\n" if clean is not None else ""
     return (
         f"[SMAI:{marker}] SUGERENCIA INTERNA DE IA — NO ENVIADA AL CLIENTE\n"
+        f"{summary}"
         f"Propuesta: {reply}\n"
         f"Revisión humana: {'SÍ' if output['human_review'] else 'recomendada'}\n"
         "No confirma stock, precio, financiación, garantía, reserva ni envío. "
@@ -175,9 +181,11 @@ def run_once():
     state["calls"] = state.get("calls", 0) + 1
     save_state(state)  # Count before API to bound worst-case expenditure.
     try:
-        clean = prepare({"conversation_id": CONV_ID, "message": msg["content"]})
+        clean = prepare({"conversation_id": CONV_ID, "message": msg["content"],
+                         "context": history_snapshot(msg.get("history", []))})
         output = suggest(clean, stored_key())
-        result = put_private(str(ident), format_note(str(ident), output))
+        output, _was_guarded = guarded_draft(output, clean)
+        result = put_private(str(ident), format_note(str(ident), output, clean))
         state["after_id"] = ident
         save_state(state)
         return "private_note_" + result
@@ -192,7 +200,7 @@ def demo_note():
     sample = prepare({"conversation_id": CONV_ID,
                       "message": "Quisiera conocer un Samsung S22 Ultra de 256 GB."})
     output = suggest(sample, stored_key())
-    return "demo_" + put_private("DEMO-1", format_note("DEMO-1", output))
+    return "demo_" + put_private("DEMO-1", format_note("DEMO-1", output, sample))
 
 def main():
     p = argparse.ArgumentParser()
