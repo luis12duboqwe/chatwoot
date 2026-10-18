@@ -16,6 +16,8 @@ import tempfile
 
 from configurar_clave_groq import stored_key
 from groq_pilot import PilotError, prepare, suggest
+from sales_context import preference_snapshot
+from suggestion_guard import guarded_draft
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / ".pilot_bridge_state.json"
@@ -51,7 +53,8 @@ def get_next(after_id):
 c=Conversation.find_by(id:{CONV_ID})
 raise 'unexpected account/inbox' unless c && c.account_id=={ACCOUNT_ID} && c.inbox_id=={INBOX_ID}
 m=c.messages.where(message_type: :incoming, private: false).where('id > ?', {after_id}).reorder(id: :desc).first
-puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], age_seconds:(Time.now.utc-m.created_at).to_i, has_attachments:m.attachments.exists?}} : {{id:nil}}).to_json
+prior=m ? c.messages.where(message_type: :incoming, private: false).where('id < ?',m.id).reorder(id: :desc).limit(4).reverse.map{{|older| older.attachments.exists? || older.content.to_s.length>420 ? nil : older.content.to_s}} : []
+puts '{PREFIX}' + (m ? {{id:m.id, content:m.content.to_s[0,1000], age_seconds:(Time.now.utc-m.created_at).to_i, has_attachments:m.attachments.exists?, history:prior}} : {{id:nil}}).to_json
 """
     return rails_run(program)
 
@@ -175,8 +178,10 @@ def run_once():
     state["calls"] = state.get("calls", 0) + 1
     save_state(state)  # Count before API to bound worst-case expenditure.
     try:
-        clean = prepare({"conversation_id": CONV_ID, "message": msg["content"]})
+        clean = prepare({"conversation_id": CONV_ID, "message": msg["content"],
+                         "context": preference_snapshot(msg.get("history", []))})
         output = suggest(clean, stored_key())
+        output, _was_guarded = guarded_draft(output)
         result = put_private(str(ident), format_note(str(ident), output))
         state["after_id"] = ident
         save_state(state)
