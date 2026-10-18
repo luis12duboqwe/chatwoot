@@ -69,11 +69,14 @@ def check_one(source,rule,messages,simulate=learner.trace_output):
  definition=learner.FAMILIES[rule["family"]]
  reply=result.get("reply","")
  if not isinstance(reply,str):reply=""
+ from accessory_directness import expected_reply
+ direct=expected_reply(source,rule)
+ required_reply=direct if direct is not None else definition["reply"]
  safe=(result.get("tag")=="sm_learned_dialogue"
        and result.get("needs_human") is True
        and all(learner.normalized(x) in learner.normalized(reply)
                for x in definition["markers"])
-       and reply==definition["reply"])
+       and reply==required_reply)
  return {"status":"deterministic_passed" if safe else "deterministic_failed",
          "pilot_only":True,
          "human_review":result.get("needs_human") is True,

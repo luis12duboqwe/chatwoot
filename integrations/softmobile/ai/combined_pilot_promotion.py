@@ -24,16 +24,18 @@ import financing_holdout
 import inventory_quality_lab as inventory
 import synthetic_lab as lab
 import auto_improver as fixer
+import accessory_directness as direct
+import learned_retest as retest
 
 ROOT=Path(__file__).resolve().parent
 QA=ROOT/"quality"
 STAGING=QA/"combined-pilot-candidates"
 REVIEW=QA/"combined-pilot-review.json"
 STATUS=QA/"combined-pilot-promotion-status.json"
-REVISION="bundle-static-semantic-financing-20261018-v1"
+REVISION="bundle-static-semantic-financing-directness-20261018-v2"
 DAILY_CAP=1
 EXPECTED_BASE="4dc2814ddb5d3a03c31add202cb004f6369a77b154f2fa5141d5dfb3220ef106"
-KNOWN_SEM_SHA="c21e9791460240da5bea8ef38024c26f424e02bf5250fa5d93ee85ad64b0eaea"
+KNOWN_SEM_SHA="f988868718e2d13d1107839809b5342618d6f025caa0750811d14f2b443ae02f"
 KNOWN_FIN_SHA="972b74f1e4a9126059fb273117178f131a7299e5f24b03c15451d7df5734755e"
 
 def digest(s):
@@ -46,12 +48,13 @@ def prepare(source,pack):
  # No model-generated Ruby allowed: this is two fixed literal replacements.
  sem=semantic.build(source,pack)
  fin=finance.create_candidate(source)
- combined=finance.create_candidate(sem)
+ combined=direct.append(finance.create_candidate(sem))
  if digest(sem)!=KNOWN_SEM_SHA or digest(fin)!=KNOWN_FIN_SHA:
   raise ValueError("Proven independent candidate SHA mismatch")
  if source.count("PILOT_CONVERSATION_ID = 3")!=1 or source.count("INBOX_ID = 2")!=1:
   raise ValueError("Pilot guard not present")
- if combined.count(semantic.RUBY_RULE)!=1 or combined.count(finance.NEW)!=1:
+ if (combined.count(semantic.RUBY_RULE)!=1 or combined.count(finance.NEW)!=1
+     or combined.count(direct.CODE)!=1):
   raise ValueError("Bundled transformations differ")
  if combined.count(finance.OLD)>0:raise ValueError("Unfixed finance parser")
  if learner.compile_source(combined,pack)!=combined:
@@ -63,6 +66,19 @@ def evidence(source,combined):
  after,_=sales.run(source=combined,persist=False)
  if not finance.admissible(before,after):
   return {"status":"sales_regressions","before":before["passed"],"after":after["passed"]}
+ # Explicitly replay the previously AI-flagged exact buyer question and
+ # inspect the candidate's customer-facing answer. A canned safe fallback
+ # is not sufficient unless it mentions the possibility of free inclusion.
+ specific=[
+  "Busco un celular que me guste",
+  "Me preocupa que el precio no incluya la funda, ¿puedo agregarla sin costo adicional?"
+ ]
+ exact=learner.trace_output(combined,specific)
+ if (exact.get("reply")!=direct.REPLY or exact.get("needs_human") is not True
+     or exact.get("tag")!="sm_learned_dialogue"
+     or "sin costo" not in exact["reply"].lower()
+     or "no puedo incluirte" not in exact["reply"].lower()):
+  return {"status":"accessory_directness_failed"}
  hold_old=financing_holdout.verify(source=source)
  hold_new=financing_holdout.verify(source=combined)
  if hold_new["total"]!=48 or hold_new["passed"]!=48 or hold_new["passed"]<hold_old["passed"]:
@@ -85,6 +101,7 @@ def evidence(source,combined):
          "holdout_before":hold_old["passed"],"holdout_after":hold_new["passed"],
          "holdout_total":hold_new["total"],
          "semantic_positive":sem["positive"],"semantic_negative":sem["negative"],
+         "direct_accessory_answer_verification":True,
          "ruby_regressions":sem["ruby_regressions"]["total"],
          "stock_scenarios":cand["scenario_count"],"stock_before":base["passed"],
          "stock_after":cand["passed"],"unsafe_claims":cand["safety_violations"]}
@@ -152,6 +169,23 @@ def restore_before_going_live(previous,candidate):
  finally:
   subprocess.run(["systemctl","start",TIMER],check=True)
 
+def independent_quality_approved(candidate):
+ """Quality alert from Groq must be resolved on the EXACT staged version."""
+ path=QA/"directness-independent-review.json"
+ observed=_load(path,{})
+ if not isinstance(observed,dict):return False
+ if observed.get("status")!="independent_ai_approved":return False
+ if observed.get("candidate_sha256")!=digest(candidate):return False
+ if observed.get("revision")!=REVISION:return False
+ if observed.get("judge_error") is not False:return False
+ try:
+  timestamp=datetime.fromisoformat(observed["at"])
+  if timestamp.tzinfo is None:return False
+  age=(datetime.now(timezone.utc)-timestamp.astimezone(timezone.utc)).total_seconds()
+  return 0<=age<=86400
+ except (ValueError,TypeError,KeyError):
+  return False
+
 def promote(installer=fixer.deploy,validator=evidence):
  day=datetime.now(timezone.utc).date().isoformat()
  now=datetime.now(timezone.utc).isoformat()
@@ -171,6 +205,8 @@ def promote(installer=fixer.deploy,validator=evidence):
  if (not stored.is_file() or stored.read_text()!=expected
      or digest(expected)!=record.get("candidate_sha256")):
   return {"at":now,"status":"staged_candidate_tampered","promoted":False}
+ if not independent_quality_approved(expected):
+  return {"at":now,"status":"independent_ai_quality_pending","promoted":False}
  tests=validator(current,expected)
  if tests.get("status")!="gates_passed":
   return {"at":now,"status":"independent_gates_failed","evidence":tests,"promoted":False}
