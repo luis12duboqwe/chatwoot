@@ -7,6 +7,7 @@ import re
 import unicodedata
 from variant_preference import expected_selection
 from sales_context import preference_snapshot
+from sales_quality_gate import assess
 
 HARD_CLAIMS=re.compile(
  r"\b(?:te lo (?:reserve|reserv[eé]|reservo)|ya (?:qued[oó] reservado|"
@@ -72,6 +73,23 @@ TOPIC_PATTERNS=(
   "Para avanzar con la compra, un asesor debe confirmar la unidad elegida, disponibilidad, precio y forma de entrega antes de generar cualquier compromiso.")
 )
 TRADE_IN_REPLY_KEYS=("parte de pago","canje","valoracion","valoración","recibir tu celular","recibir el celular","tomar tu celular")
+RUBRIC_BY_TOPIC={"trade_in":"trade_in","payment":"payment","shipping":"shipping",
+ "inspection":"inspection","warranty":"warranty","price":"budget","purchase":"closing"}
+
+def _buyer_topic(clean):
+ if not isinstance(clean,dict) or not isinstance(clean.get("message"),str):
+  return None
+ message=clean["message"]
+ for name,pattern,_ in TOPIC_PATTERNS:
+  if pattern.search(message):
+   if name=="price" and re.search(r"\b(?:descuento|promocion|promoción|oferta)\b",message,re.I):
+    return "discount"
+   return RUBRIC_BY_TOPIC[name]
+ known=preference_snapshot([message])
+ context=clean.get("context")
+ if known.get("model") or (isinstance(context,dict) and context.get("model")):
+  return "product"
+ return None
 
 def _topic_fallback(clean):
  if not isinstance(clean,dict):return FALLBACK
@@ -91,7 +109,9 @@ def guarded_draft(output,clean=None):
  if not isinstance(output,dict) or not isinstance(output.get("suggested_reply"),str):
   raise ValueError("Invalid Groq proposal")
  reply=output["suggested_reply"]
- if (HARD_CLAIMS.search(reply) or FIGURES.search(reply) or
+ topic=_buyer_topic(clean)
+ quality=assess(reply,topic) if topic else None
+ if (quality is not None and not all(quality[k] for k in ("relevant","actionable","specific","meaningful"))) or (HARD_CLAIMS.search(reply) or FIGURES.search(reply) or
      CREDENTIALS.search(reply) or _repeats_known_question(reply,clean) or
      (isinstance(clean,dict) and isinstance(clean.get("message"),str) and
       TOPIC_PATTERNS[0][1].search(clean["message"]) and
