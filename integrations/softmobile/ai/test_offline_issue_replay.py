@@ -54,7 +54,7 @@ class OfflineReplayTests(unittest.TestCase):
    return [{"id":x["id"],"category":"questions","turns":[{"buyer":s,"bot":"A revisar"}
       for s in x["scenario"]["messages"]]} for x in rows]
   with patch.object(f.lab,"static_flags",return_value=[]):
-   r=f.assess(issues=[copy.deepcopy(ISSUE)],runner=stub)
+   r=f.assess(issues=[copy.deepcopy(ISSUE)],runner=stub,source="fictional Ruby source")
   self.assertEqual(r["api_calls"],0)
   self.assertEqual(r["public_messages_sent"],0)
   self.assertFalse(r["real_inventory_changed"])
@@ -75,6 +75,6 @@ class OfflineReplayTests(unittest.TestCase):
  def test_untrusted_scenario_is_not_executed(self):
   bogus=copy.deepcopy(ISSUE)
   bogus["scenario"]["messages"][0]="Me llamo Pedro y mi teléfono es 9999"
-  result=f.assess(issues=[bogus],runner=lambda *args,**kwargs:[])
+  result=f.assess(issues=[bogus],runner=lambda *args,**kwargs:[],source="fictional Ruby source")
   self.assertEqual(result["replayed"],0)
 if __name__=="__main__":unittest.main()
